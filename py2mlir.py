@@ -100,7 +100,7 @@ def test_mullist():
     return c
 '''
 
-parsed_ast = ast.parse(code6)
+parsed_ast = ast.parse(code3)
 print(ast.dump(parsed_ast, indent=2))
 
 class MLIRGenerator(ast.NodeVisitor):
@@ -577,7 +577,8 @@ class MLIRGenerator(ast.NodeVisitor):
         if isinstance(target, ast.Name):
             var_name = target.id
             current_value = self.symbol_table[var_name]
-            if isinstance(current_value.type, ir.F64Type):
+            if isinstance(current_value.type, ir.F64Type) or isinstance(value.type, ir.F64Type):
+                current_value = self.cast_to_f64(current_value)
                 value = self.cast_to_f64(value)
                 with ir.InsertionPoint(self.block_stack[-1]):
                     if isinstance(node.op, ast.Add):
@@ -592,7 +593,8 @@ class MLIRGenerator(ast.NodeVisitor):
                         op = arith.RemFOp(current_value, value).result
                     else:
                         raise NotImplementedError(f"Unsupported operator: {type(node.op)}")
-            elif isinstance(current_value.type, (ir.IntegerType)):
+            elif isinstance(current_value.type, (ir.IntegerType, ir.IndexType)) and isinstance(value.type, (ir.IntegerType, ir.IndexType)):
+                current_value = self.cast_to_int64(current_value)
                 value = self.cast_to_int64(value)
                 with ir.InsertionPoint(self.block_stack[-1]):
                     if isinstance(node.op, ast.Add):
