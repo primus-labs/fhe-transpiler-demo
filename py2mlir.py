@@ -88,8 +88,20 @@ def a(b:int):
             a += b
     return b
 '''
+code6 = '''
+def test_mullist():
+    a = [2, 3]
+    d = [[1,1.0],[2,2]]
+    b = [3, 4.0]
+    c = 0
+    for i in range(2):
+        a[i] /= a[i]/b[i]
+        b[i] /= a[i]
+    return c
+'''
 
-parsed_ast = ast.parse(code)
+parsed_ast = ast.parse(code6)
+print(ast.dump(parsed_ast, indent=2))
 
 class MLIRGenerator(ast.NodeVisitor):
     def __init__(self, module):
@@ -376,16 +388,24 @@ class MLIRGenerator(ast.NodeVisitor):
 
     def visit_List(self, node):
         values, shape = self.flatten_list(node.elts)
-        element_type = ir.F64Type.get()
+        if all(isinstance(v, int) for v in values):
+            element_type = ir.IntegerType.get_signless(64)
+            eltype = 0
+        else:
+            element_type = ir.F64Type.get()
+            eltype = 1
         memref_type = ir.MemRefType.get(shape, element_type)
         dynamic_sizes = []
         symbol_operands = []
         with ir.InsertionPoint(self.block_stack[-1]):
             memref_alloc = memref.AllocOp(memref_type, dynamic_sizes, symbol_operands).result
-            np_values = np.array(values, dtype=np.float64).reshape(shape)
+            if eltype == 0:
+                np_values = np.array(values, dtype=np.int64).reshape(shape)
+            else:
+                np_values = np.array(values, dtype=np.float64).reshape(shape)
             for idx, value in np.ndenumerate(np_values):
                 index = [arith.ConstantOp(ir.IndexType.get(), i).result for i in idx]
-                memref.StoreOp(arith.ConstantOp(element_type, value), memref_alloc, index)
+                memref.StoreOp(arith.ConstantOp(element_type, value.item()), memref_alloc, index)
         return memref_alloc
 
     def visit_Call(self, node):
@@ -557,8 +577,7 @@ class MLIRGenerator(ast.NodeVisitor):
         if isinstance(target, ast.Name):
             var_name = target.id
             current_value = self.symbol_table[var_name]
-            if isinstance(current_value.type, ir.F64Type) or isinstance(value.type, ir.F64Type):
-                current_value = self.cast_to_f64(current_value)
+            if isinstance(current_value.type, ir.F64Type):
                 value = self.cast_to_f64(value)
                 with ir.InsertionPoint(self.block_stack[-1]):
                     if isinstance(node.op, ast.Add):
@@ -573,8 +592,7 @@ class MLIRGenerator(ast.NodeVisitor):
                         op = arith.RemFOp(current_value, value).result
                     else:
                         raise NotImplementedError(f"Unsupported operator: {type(node.op)}")
-            elif isinstance(current_value.type, (ir.IntegerType, ir.IndexType)) and isinstance(value.type, (ir.IntegerType, ir.IndexType)):
-                current_value = self.cast_to_int64(current_value)
+            elif isinstance(current_value.type, (ir.IntegerType)):
                 value = self.cast_to_int64(value)
                 with ir.InsertionPoint(self.block_stack[-1]):
                     if isinstance(node.op, ast.Add):
@@ -595,14 +613,34 @@ class MLIRGenerator(ast.NodeVisitor):
             indices = [self.cast_to_index(self.visit(target.slice))]
             current_value = memref.LoadOp(base, indices).result
             with ir.InsertionPoint(self.block_stack[-1]):
-                if isinstance(node.op, ast.Add):
-                    result = arith.AddFOp(current_value, value).result
-                elif isinstance(node.op, ast.Sub):
-                    result = arith.SubFOp(current_value, value).result
-                elif isinstance(node.op, ast.Mult):
-                    result = arith.MulFOp(current_value, value).result
-                else:
-                    raise NotImplementedError(f"Unsupported compound assignment operation: {type(node.op)}")
+                if isinstance(current_value.type, ir.F64Type):
+                    value = self.cast_to_f64(value)
+                    if isinstance(node.op, ast.Add):
+                        result = arith.AddFOp(current_value, value).result
+                    elif isinstance(node.op, ast.Sub):
+                        result = arith.SubFOp(current_value, value).result
+                    elif isinstance(node.op, ast.Mult):
+                        result = arith.MulFOp(current_value, value).result
+                    elif isinstance(node.op, ast.Div):
+                        result = arith.DivFOp(current_value, value).result
+                    elif isinstance(node.op, ast.Mod):
+                        result = arith.RemFOp(current_value, value).result
+                    else:
+                        raise NotImplementedError(f"Unsupported compound assignment operation: {type(node.op)}")
+                elif isinstance(current_value.type, (ir.IntegerType)):
+                    value = self.cast_to_int64(value)
+                    if isinstance(node.op, ast.Add):
+                        result = arith.AddIOp(current_value, value).result
+                    elif isinstance(node.op, ast.Sub):
+                        result = arith.SubIOp(current_value, value).result
+                    elif isinstance(node.op, ast.Mult):
+                        result = arith.MulIOp(current_value, value).result
+                    elif isinstance(node.op, ast.Div):
+                        result = arith.DivSIOp(current_value, value).result
+                    elif isinstance(node.op, ast.Mod):
+                        result = arith.RemSIOp(current_value, value).result
+                    else:
+                        raise NotImplementedError(f"Unsupported compound assignment operation: {type(node.op)}")
             memref.StoreOp(result, base, indices)
         else:
             raise NotImplementedError(f"Unsupported assignment target: {type(target)}")
