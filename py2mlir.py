@@ -2,7 +2,6 @@
 #   
 #   git clone https://github.com/llvm/llvm-project.git
 #   cd llvm-project
-#   git checkout 8e0daabe97cf5e73402bcb4c3e54b3583199ba8f
 #   cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="mlir"    \
 #   -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host"          \
 #   -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE=$(which python3) \
@@ -41,7 +40,7 @@ code2 = '''
 def BoxBlur(img: list[float], img2: list[float]) -> float:
     imgSize = 4
     kerSize = 3
-    weightMatrix = [1, 1, 1, 1, 1, 1, 1, 1, 1]
+    weightMatrix = [1.0, 1, 1, 1, 1, 1, 1, 1, 1]
     for x in range(imgSize):
         for y in range(imgSize):
             value = 0
@@ -63,6 +62,28 @@ code3 = '''
 def BoxBlur(img: list[float], img2: list[float]) -> float:
     imgSize = 4
     kerSize = 3
+    weightMatrix = [1.0, 1, 1, 1, 1, 1, 1, 1, 1]
+    for x in range(imgSize):
+        for y in range(imgSize):
+            value = 0
+            for i in range(3):
+                for j in range(3):
+                    weightRow = i*kerSize
+                    weightIndex = weightRow + j
+                    imgRow = (x+i-1)*imgSize
+                    imgIndex = imgRow + y + j - 1
+                    ImgIndex = imgIndex % 16
+                    value += weightMatrix[weightIndex] * img[ImgIndex];
+            resRow = imgSize*x
+            resIndex = resRow + y
+            img2[resIndex] = value
+    return_value = img2[0]
+    return return_value
+'''
+code4 = '''
+def BoxBlur(img: list[float], img2: list[float]) -> float:
+    imgSize = 4
+    kerSize = 3
     weightMatrix = [1, 1]
     value = 0
     for x in range(imgSize):
@@ -73,14 +94,14 @@ def BoxBlur(img: list[float], img2: list[float]) -> float:
             img2[x] = value
     return img2[0]
 '''
-code4 = '''
+code5 = '''
 def temp():
     a = [0]
     a = 1.0
     b = 2.0
     return a
 '''
-code5 = '''
+code6 = '''
 def a(b:int):
     if b > 0:
         a = 0
@@ -89,7 +110,7 @@ def a(b:int):
             a += b
     return b
 '''
-code6 = '''
+code7 = '''
 def test_mullist():
     a = [2, 3]
     d = [[1,1.0],[2,2]]
@@ -97,12 +118,12 @@ def test_mullist():
     c = 0
     for i in range(2):
         a[i] /= a[i]/b[i]
-        b[i] /= a[i]
+        b[i] %= b[i]
     return c
 '''
 
 parsed_ast = ast.parse(code3)
-print(ast.dump(parsed_ast, indent=2))
+# print(ast.dump(parsed_ast, indent=2))
 
 class MLIRGenerator(ast.NodeVisitor):
     def __init__(self, module):
@@ -415,9 +436,7 @@ class MLIRGenerator(ast.NodeVisitor):
             raise NameError(f"Function '{func_name}' is not defined.")
         func_type = self.func_table[func_name]
         return_types = func_type.results
-
         args = [self.visit(arg) for arg in node.args]
-
         with ir.InsertionPoint(self.block_stack[-1]):
             call_op = ir.Operation.create(
                 "func.call",
@@ -540,8 +559,6 @@ class MLIRGenerator(ast.NodeVisitor):
             for var_name in assigned_vars:
                 if var_name in self.symbol_table:
                     init_val = self.symbol_table[var_name]
-                    if init_val.type != ir.F64Type.get():
-                        init_val = self.cast_to_f64(init_val)
                     loop_carried_vars.append(var_name)
                     init_vals.append(init_val)
             loop = scf.ForOp(start, end, step, iter_args=init_vals)
@@ -578,8 +595,7 @@ class MLIRGenerator(ast.NodeVisitor):
         if isinstance(target, ast.Name):
             var_name = target.id
             current_value = self.symbol_table[var_name]
-            if isinstance(current_value.type, ir.F64Type) or isinstance(value.type, ir.F64Type):
-                current_value = self.cast_to_f64(current_value)
+            if isinstance(current_value.type, ir.F64Type):
                 value = self.cast_to_f64(value)
                 with ir.InsertionPoint(self.block_stack[-1]):
                     if isinstance(node.op, ast.Add):
@@ -594,8 +610,7 @@ class MLIRGenerator(ast.NodeVisitor):
                         op = arith.RemFOp(current_value, value).result
                     else:
                         raise NotImplementedError(f"Unsupported operator: {type(node.op)}")
-            elif isinstance(current_value.type, (ir.IntegerType, ir.IndexType)) and isinstance(value.type, (ir.IntegerType, ir.IndexType)):
-                current_value = self.cast_to_int64(current_value)
+            elif isinstance(current_value.type, (ir.IntegerType)):
                 value = self.cast_to_int64(value)
                 with ir.InsertionPoint(self.block_stack[-1]):
                     if isinstance(node.op, ast.Add):
