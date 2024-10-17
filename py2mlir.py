@@ -17,6 +17,7 @@ import ast
 from mlir import ir
 from mlir.dialects import func, arith, scf
 from mlir.dialects import memref
+from mlir.ir import ShapedType
 import numpy as np
 
 code = '''
@@ -24,7 +25,8 @@ def main():
     a = 0
     b = 3
     for i in range(b):
-        a += b
+        if b > 0:
+            a += b
     return a
 '''
 code1 = '''
@@ -80,11 +82,14 @@ def temp():
 code5 = '''
 def a(b:int):
     if b > 0:
-        b = 5
+        a = 0
+        b = 3
+        for i in range(b):
+            a += b
     return b
 '''
 
-parsed_ast = ast.parse(code2)
+parsed_ast = ast.parse(code)
 
 class MLIRGenerator(ast.NodeVisitor):
     def __init__(self, module):
@@ -175,7 +180,6 @@ class MLIRGenerator(ast.NodeVisitor):
         memref_shape = base_type.shape
         memref_rank = len(memref_shape)
         index_type = ir.IndexType.get()
-        from mlir.ir import ShapedType
         dynamic = ShapedType.get_dynamic_stride_or_offset()
         offsets = []
         sizes = []
@@ -295,6 +299,8 @@ class MLIRGenerator(ast.NodeVisitor):
                     target = stmt.targets[0] if isinstance(stmt, ast.Assign) else stmt.target
                     if isinstance(target, ast.Name):
                         assigned_vars.add(target.id)
+                elif isinstance(stmt, ast.For):
+                    collect_assigned_vars(stmt.body)
                 elif isinstance(stmt, ast.If):
                     collect_assigned_vars(stmt.body)
                     collect_assigned_vars(stmt.orelse)
@@ -501,8 +507,7 @@ class MLIRGenerator(ast.NodeVisitor):
                     if isinstance(stmt, (ast.Assign, ast.AugAssign)):
                         target = stmt.targets[0] if isinstance(stmt, ast.Assign) else stmt.target
                         if isinstance(target, ast.Name):
-                            var_name = target.id
-                            assigned_vars.add(var_name)
+                            assigned_vars.add(target.id)
                     elif isinstance(stmt, ast.For):
                         collect_assigned_vars(stmt.body)
                     elif isinstance(stmt, ast.If):
