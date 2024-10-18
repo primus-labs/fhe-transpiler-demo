@@ -16,4 +16,6 @@ ninja install
 # set PYTHONPATH environment variables
 export PYTHONPATH=tools/mlir/python_packages/mlir_core:${PYTHONPATH}
 
-echo "Please run: python3 ../../py2mlir.py"
+cd ../..
+
+echo "Please run: python3 py2mlir.py"
