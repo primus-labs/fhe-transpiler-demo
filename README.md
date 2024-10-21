@@ -25,15 +25,20 @@ cd ../..
 ./setup_dependencies.sh
 ```
 
-## Run py2mlir.py
-First, set ```PYTHONPATH``` environment variables.
+## Run py2mlir.py or py2mlir-rmscf.py
+In order to adapt to [HEIR](https://github.com/heir-compiler/HEIR), ```py2mlir-rmscf.py``` replaced scf with affine, which can be used to generate mlir using affine.load and affine.for.
+
+To run the Front-End, first, set ```PYTHONPATH``` environment variables.
 
 ```bash
 export PYTHONPATH=llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
 ```
 
-Next, run ```py2mlir.py```.
+Next, run ```py2mlir.py``` or ```py2mlir-rmscf.py```.
 
 ```bash
 python3 py2mlir.py
+```
+```bash
+python3 py2mlir-rmscf.py
 ```
