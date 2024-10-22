@@ -1,7 +1,6 @@
 import ast
 from mlir import ir
-from mlir.dialects import func, arith, affine
-from mlir.dialects import memref
+from mlir.dialects import func, arith, affine, memref
 from mlir.ir import ShapedType
 import numpy as np
 
@@ -30,9 +29,9 @@ result[0]=0
 '''
 
 code4 = '''
-def inner_product(a: list[list[float]], b:list[float]) -> float:
+def inner_product(a: list[list[float]], b:list[float], c:int) -> float:
     result=[0]
-    for j in range(2):
+    for j in range(c):
         for i in range(1, 4):
             result[i] += a[i][i+j]*b[0]+result[0]
     return result
@@ -40,7 +39,8 @@ def inner_product(a: list[list[float]], b:list[float]) -> float:
 
 code5 = '''
 a = [[1,2],[1,2]]
-for i in range(2):
+n = 2
+for i in range(n):
     for j in range(1, 4):
         a[0][0] /= a[i][j-1]
 '''
@@ -60,7 +60,24 @@ def BoxBlur(img: list[float], img2: list[float]) -> float:
     return img2[0]
 '''
 
-parsed_ast = ast.parse(code5)
+code7 = '''
+def inner_product(a: list[float], b:list[float]) -> float:
+    result = a[0]*b[0]
+    for i in range(1,4):
+        result += a[i]*b[i]
+    return result
+'''
+
+code8 = '''
+def euclid_dist(a: list[float], b:list[float]) -> float:
+    result = (a[0] - b[0]) * (a[0] - b[0])
+    for i in range(1, 4):
+        temp = a[i] - b[i]
+        result += temp * temp
+    return result
+'''
+
+parsed_ast = ast.parse(code8)
 
 class MLIRGenerator(ast.NodeVisitor):
     def __init__(self, module):
@@ -363,17 +380,23 @@ class MLIRGenerator(ast.NodeVisitor):
 
 
     def get_constant_int_value(self, value):
-        if isinstance(value, ir.Operation):
-            value = value.result
-        if not isinstance(value, ir.Value):
-            raise ValueError("Expected an MLIR value")
-        defining_op = value.owner.opview
-        if defining_op and isinstance(defining_op, arith.ConstantOp):
-            const_attr = defining_op.attributes["value"]
-            if isinstance(const_attr, ir.IntegerAttr):
-                return const_attr.value
-        raise ValueError("Expected a constant integer value")
-    
+        if isinstance(value, arith.ConstantOp) or isinstance(value, ast.Constant):
+            return int(value.value)
+        elif isinstance(value, ast.Name):
+            value = self.symbol_table.get(value.id)
+            if isinstance(value, ir.OpResult):
+                return int(value.owner.opview.attributes["value"].value)
+            else:
+                value = self.cast_to_index(value)
+                return value
+            
+        else:
+            value = self.cast_to_index(value)
+            return value
+
+
+
+
     def parse_affine_expr(self, expr, dim_vars, sym_vars):
         if isinstance(expr, ast.Name):
             var_name = expr.id
@@ -630,22 +653,16 @@ class MLIRGenerator(ast.NodeVisitor):
         with ir.InsertionPoint(self.block_stack[-1]):
             if len(range_args) == 1:
                 start = 0
-                end_value = self.visit(range_args[0])
-                end = self.get_constant_int_value(end_value)
+                end = self.get_constant_int_value(range_args[0])
                 step = 1
             elif len(range_args) == 2:
-                start_value = self.visit(range_args[0])
-                start = self.get_constant_int_value(start_value)
-                end_value = self.visit(range_args[1])
-                end = self.get_constant_int_value(end_value)
+                start = self.get_constant_int_value(range_args[0])
+                end = self.get_constant_int_value(range_args[1])
                 step = 1
             elif len(range_args) == 3:
-                start_value = self.visit(range_args[0])
-                start = self.get_constant_int_value(start_value)
-                end_value = self.visit(range_args[1])
-                end = self.get_constant_int_value(end_value)
-                step_value = self.visit(range_args[2])
-                step = self.get_constant_int_value(step_value)
+                start = self.get_constant_int_value(range_args[0])
+                end = self.get_constant_int_value(range_args[1])
+                step = self.get_constant_int_value(range_args[2])
             else:
                 raise NotImplementedError("range() only supports 1 to 3 parameters")
             assigned_vars = set()
