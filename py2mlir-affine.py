@@ -29,7 +29,7 @@ result[0]=0
 '''
 
 code4 = '''
-def inner_product(a: list[list[float]], b:list[float], c:int) -> float:
+def inner_product(a: list[list[float,4],4], b:list[float,4], c:int) -> float:
     result=[0]
     for j in range(c):
         for i in range(1, 4):
@@ -73,10 +73,14 @@ def euclid_dist(a: list[float], b:list[float]) -> float:
         temp = a[i] - b[i]
         result += temp * temp
     return result
+def k(f: list[float], g:list[float]):
+    e = euclid_dist(f, g)
+    return e
 '''
 
 code9 = '''
-def BoxBlur(img: list[int], img2: list[int]) -> float:
+import array
+def BoxBlur(img: list[float, 4], img2: list[float]) -> float:
     imgSize = 4
     kerSize = 3
     weightMatrix = [1.0, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -91,7 +95,8 @@ def BoxBlur(img: list[int], img2: list[int]) -> float:
     return return_value
 '''
 
-parsed_ast = ast.parse(code6)
+parsed_ast = ast.parse(code4)
+# print(ast.dump(parsed_ast, indent=2))
 
 class MLIRGenerator(ast.NodeVisitor):
     def __init__(self, module):
@@ -219,6 +224,8 @@ class MLIRGenerator(ast.NodeVisitor):
             if (isinstance(annotation.value, ast.Name) and annotation.value.id == 'list'):
                 element_type = self.parse_type_annotation(annotation.slice)
                 dynamic_size = ir.ShapedType.get_dynamic_size()
+                if isinstance(annotation.slice, ast.Tuple):
+                    dynamic_size = annotation.slice.elts[1].value
                 if isinstance(element_type, ir.MemRefType):
                     memref_type = ir.MemRefType.get([dynamic_size] + list(element_type.shape), element_type.element_type)
                 elif isinstance(element_type, ir.Type):
@@ -228,6 +235,17 @@ class MLIRGenerator(ast.NodeVisitor):
                 return memref_type
             else:
                 raise NotImplementedError(f"Unsupported type annotation: {ast.dump(annotation)}")
+        elif isinstance(annotation, ast.Tuple):
+            if isinstance(annotation.elts[0], ast.Name):
+                if annotation.elts[0].id == 'float':
+                    return ir.F64Type.get()
+                elif annotation.elts[0].id == 'int':
+                    return ir.IntegerType.get_signless(64)
+                else:
+                    raise NotImplementedError(f"Unsupported type annotation: {annotation.id}")
+            else:
+                return self.parse_type_annotation(annotation.elts[0])
+
         else:
             raise NotImplementedError(f"Unsupported type annotation: {ast.dump(annotation)}")
 
