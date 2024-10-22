@@ -4,6 +4,7 @@ from mlir.dialects import func, arith, affine, memref
 from mlir.ir import ShapedType
 import numpy as np
 
+
 code1 = '''
 def inner_product(a: list[float], b:list[float]) -> float:
     result = 2
@@ -12,7 +13,6 @@ def inner_product(a: list[float], b:list[float]) -> float:
             a[0] += result*a[i+1+j]
     return result
 '''
-
 code2 = '''
 def inner_product(a: list[list[float]], b:list[float]) -> float:
     result = [0]
@@ -23,7 +23,6 @@ def inner_product(a: list[list[float]], b:list[float]) -> float:
             result[0] += a[i][i+j]*b[j]
     return result
 '''
-
 code3 = '''
 result=[0]
 result[0]=0
@@ -47,18 +46,16 @@ for i in range(n):
 '''
 
 code6 = '''
-def BoxBlur(img: list[float], img2: list[float]) -> float:
-    imgSize = 4
-    kerSize = 3
-    weightMatrix = [1, 1]
-    value = 0
-    for x in range(imgSize):
-        for y in range(imgSize):
-            for i in range(3):
-                for j in range(3):
-                    value += weightMatrix[1];
-            img2[x] = value
-    return img2[0]
+def test_mullist():
+    a = [2, 3]
+    d = [[1,1.0],[2,2]]
+    b = [3, 4.0]
+    # d[0][0] = 1
+    c = 0
+    for i in range(2):
+        a[i] /= a[i]/b[i]
+        b[i] %= b[i]
+    return c
 '''
 
 code7 = '''
@@ -72,15 +69,29 @@ def inner_product(a: list[float], b:list[float]) -> float:
 code8 = '''
 def euclid_dist(a: list[float], b:list[float]) -> float:
     result = (a[0] - b[0]) * (a[0] - b[0])
-    a[0] += 1
     for i in range(1, 4):
         temp = a[i] - b[i]
-        temp += (a[0] - b[0])
         result += temp * temp
     return result
 '''
 
-parsed_ast = ast.parse(code1)
+code9 = '''
+def BoxBlur(img: list[int], img2: list[int]) -> float:
+    imgSize = 4
+    kerSize = 3
+    weightMatrix = [1.0, 1, 1, 1, 1, 1, 1, 1, 1]
+    for x in range(imgSize):
+        for y in range(imgSize):
+            value = 0
+            for i in range(3):
+                for j in range(3):
+                    value += weightMatrix[i*kerSize + j] * img[((x+i-1)*imgSize+ y + j - 1)%16]
+            img2[imgSize*x + y] = value
+    return_value = img2[0]
+    return return_value
+'''
+
+parsed_ast = ast.parse(code6)
 
 class MLIRGenerator(ast.NodeVisitor):
     def __init__(self, module):
@@ -429,26 +440,15 @@ class MLIRGenerator(ast.NodeVisitor):
 
 
     def get_constant_int_value(self, value):
-        # if isinstance(value, ir.Operation):
-        #     value = value.result
-        # if not isinstance(value, ir.Value):
-        #     raise ValueError("Expected an MLIR value")
-        # defining_op = value.owner.opview
-        # if defining_op and isinstance(defining_op, arith.ConstantOp):
-        #     const_attr = defining_op.attributes["value"]
-        #     if isinstance(const_attr, ir.IntegerAttr):
-        #         return const_attr.value
-        # raise ValueError("Expected a constant integer value")
         if isinstance(value, arith.ConstantOp) or isinstance(value, ast.Constant):
             return int(value.value)
         elif isinstance(value, ast.Name):
             value = self.symbol_table.get(value.id)
-            if isinstance(value, ir.OpResult):
+            if isinstance(value, ir.OpResult) and isinstance(value.owner.opview, arith.ConstantOp):
                 return int(value.owner.opview.attributes["value"].value)
             else:
                 value = self.cast_to_index(value)
                 return value
-            
         else:
             value = self.cast_to_index(value)
             return value
@@ -459,6 +459,12 @@ class MLIRGenerator(ast.NodeVisitor):
     def parse_affine_expr(self, expr, dim_vars, sym_vars):
         if isinstance(expr, ast.Name):
             var_name = expr.id
+            varop = self.symbol_table.get(var_name)
+            if isinstance(varop, ir.OpResult):
+                if isinstance(varop.owner.opview, arith.ConstantOp):
+                    varvalue = int(varop.owner.opview.literal_value)
+                    dim_vars.remove(var_name)
+                    return affine.AffineConstantExpr.get(varvalue), []
             if var_name in dim_vars:
                 dim_pos = dim_vars.index(var_name)
                 return affine.AffineDimExpr.get(dim_pos), []
@@ -479,6 +485,10 @@ class MLIRGenerator(ast.NodeVisitor):
                 return lhs_expr - rhs_expr, lhs_operands + rhs_operands
             elif isinstance(expr.op, ast.Mult):
                 return lhs_expr * rhs_expr, lhs_operands + rhs_operands
+            elif isinstance(expr.op, ast.Div):
+                return lhs_expr / rhs_expr, lhs_operands + rhs_operands
+            elif isinstance(expr.op, ast.Mod):
+                return lhs_expr % rhs_expr, lhs_operands + rhs_operands
             else:
                 raise NotImplementedError(f"Unsupported binary operator in affine expression: {type(expr.op)}")
         else:
@@ -509,23 +519,23 @@ class MLIRGenerator(ast.NodeVisitor):
         sym_vars = []
 
         def collect_variable_names(expr):
-            variable_names = set()
+            variable_names = []
             class NameCollector(ast.NodeVisitor):
                 def visit_Name(self, node):
-                    variable_names.add(node.id)
+                    if node.id not in variable_names:
+                        variable_names.append(node.id)
                 def generic_visit(self, node):
                     ast.NodeVisitor.generic_visit(self, node)
             NameCollector().visit(expr)
             return variable_names
         if len(indices) == 1:
-            dim_vars = list(collect_variable_names(indices[0]))
+            dim_vars = collect_variable_names(indices[0])
         elif len(indices) == 2:
             dim_vars = collect_variable_names(indices[0])
-            dim_vars |= collect_variable_names(indices[1])
-            if dim_vars == {}:
-                dim_vars =[]
-            else:
-                dim_vars = list(dim_vars)
+            dim_vars2 = collect_variable_names(indices[1])
+            for i in dim_vars2:
+                if i not in dim_vars:
+                    dim_vars.append(i)
         index_exprs = []
         for expr in indices:
             if isinstance(expr, ast.Name):
@@ -569,6 +579,11 @@ class MLIRGenerator(ast.NodeVisitor):
                         break
             if operand is None:
                 raise ValueError(f"Dimension variable '{var_name}' not found")
+            if isinstance(operand, ir.OpResult):
+                if isinstance(operand.owner.opview, arith.ConstantOp):
+                    operand = operand.owner.opview
+                else:
+                    operand = self.cast_to_index(operand)
             map_operands.append(operand)
         for var_name in sym_vars:
             operand = self.symbol_table.get(var_name)
