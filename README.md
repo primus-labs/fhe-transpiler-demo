@@ -2,7 +2,7 @@
 
 ## Configure Front-End
 
-Run the following command before running ```py2mlir.py```.
+Run the following command before running ```py2mlir.py``` and ```py2mlir-affine```.
 
 ### Manual installation
 
@@ -25,8 +25,8 @@ cd ../..
 ./setup_dependencies.sh
 ```
 
-## Run py2mlir.py or py2mlir-rmscf.py
-In order to adapt to [HEIR](https://github.com/heir-compiler/HEIR), ```py2mlir-rmscf.py``` replaced scf with affine, which can be used to generate mlir using affine.load and affine.for.
+## Run py2mlir.py or py2mlir-affine.py
+In order to adapt to [HEIR](https://github.com/heir-compiler/HEIR), ```py2mlir-affine.py``` replaced scf with affine, which can be used to generate mlir using affine.load and affine.for.
 
 To run the Front-End, first, set ```PYTHONPATH``` environment variables.
 
@@ -34,11 +34,11 @@ To run the Front-End, first, set ```PYTHONPATH``` environment variables.
 export PYTHONPATH=llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
 ```
 
-Next, run ```py2mlir.py``` or ```py2mlir-rmscf.py```.
+Next, run ```py2mlir.py``` or ```py2mlir-affine.py```.
 
 ```bash
 python3 py2mlir.py
 ```
 ```bash
-python3 py2mlir-rmscf.py
+python3 py2mlir-affine.py
 ```
