@@ -4,7 +4,6 @@ from mlir.dialects import func, arith, affine, memref
 from mlir.ir import ShapedType
 import numpy as np
 
-
 code1 = '''
 def inner_product(a: list[float], b:list[float]) -> float:
     result = 2
@@ -13,6 +12,7 @@ def inner_product(a: list[float], b:list[float]) -> float:
             a[0] += result*a[i+1+j]
     return result
 '''
+
 code2 = '''
 def inner_product(a: list[list[float]], b:list[float]) -> float:
     result = [0]
@@ -23,6 +23,7 @@ def inner_product(a: list[list[float]], b:list[float]) -> float:
             result[0] += a[i][i+j]*b[j]
     return result
 '''
+
 code3 = '''
 result=[0]
 result[0]=0
@@ -71,13 +72,15 @@ def inner_product(a: list[float], b:list[float]) -> float:
 code8 = '''
 def euclid_dist(a: list[float], b:list[float]) -> float:
     result = (a[0] - b[0]) * (a[0] - b[0])
+    a[0] += 1
     for i in range(1, 4):
         temp = a[i] - b[i]
+        temp += (a[0] - b[0])
         result += temp * temp
     return result
 '''
 
-parsed_ast = ast.parse(code8)
+parsed_ast = ast.parse(code1)
 
 class MLIRGenerator(ast.NodeVisitor):
     def __init__(self, module):
@@ -85,6 +88,52 @@ class MLIRGenerator(ast.NodeVisitor):
         self.symbol_table = {}
         self.block_stack = []
         self.func_table = {}
+        self.variable_versions = {}
+        self.expression_cache = {}
+    
+    def node_to_tuple(self, node):
+        if isinstance(node, ast.AST):
+            fields = tuple((field, self.node_to_tuple(getattr(node, field))) for field in node._fields)
+            return (type(node).__name__, fields)
+        elif isinstance(node, list):
+            return tuple(self.node_to_tuple(item) for item in node)
+        else:
+            return node
+        
+    def get_expression_cache_key(self, node):
+        node_key = self.node_to_tuple(node)
+        variables_in_expr = self.collect_variables(node)
+        variable_versions = tuple((var, self.variable_versions.get(var, 0)) for var in sorted(variables_in_expr))
+        return (node_key, variable_versions)
+    
+    def get_subscript_variable_name(self, target):
+        base_node = target
+        while isinstance(base_node, ast.Subscript):
+            base_node = base_node.value
+        if isinstance(base_node, ast.Name):
+            return base_node.id
+        else:
+            raise NotImplementedError(f"Unsupported subscript target: {ast.dump(target)}")
+    
+    def collect_variables(self, node):
+        variables = set()
+        class VariableCollector(ast.NodeVisitor):
+            def visit_Name(self, n):
+                if isinstance(n.ctx, ast.Load):
+                    variables.add(n.id)
+            def generic_visit(self, n):
+                super().generic_visit(n)
+        VariableCollector().visit(node)
+        return variables
+        
+    def visit(self, node):
+        cache_key = self.get_expression_cache_key(node)
+        if cache_key in self.expression_cache:
+            return self.expression_cache[cache_key]
+        else:
+            result = super().visit(node)
+            self.expression_cache[cache_key] = result
+            return result
 
     def flatten_list(self, elts):
         if all(isinstance(e, ast.Constant) and isinstance(e.value, (int, float)) for e in elts):
@@ -380,6 +429,16 @@ class MLIRGenerator(ast.NodeVisitor):
 
 
     def get_constant_int_value(self, value):
+        # if isinstance(value, ir.Operation):
+        #     value = value.result
+        # if not isinstance(value, ir.Value):
+        #     raise ValueError("Expected an MLIR value")
+        # defining_op = value.owner.opview
+        # if defining_op and isinstance(defining_op, arith.ConstantOp):
+        #     const_attr = defining_op.attributes["value"]
+        #     if isinstance(const_attr, ir.IntegerAttr):
+        #         return const_attr.value
+        # raise ValueError("Expected a constant integer value")
         if isinstance(value, arith.ConstantOp) or isinstance(value, ast.Constant):
             return int(value.value)
         elif isinstance(value, ast.Name):
@@ -653,15 +712,21 @@ class MLIRGenerator(ast.NodeVisitor):
         with ir.InsertionPoint(self.block_stack[-1]):
             if len(range_args) == 1:
                 start = 0
+                # end_value = self.visit(range_args[0])
                 end = self.get_constant_int_value(range_args[0])
                 step = 1
             elif len(range_args) == 2:
+                # start_value = self.visit(range_args[0])
                 start = self.get_constant_int_value(range_args[0])
+                # end_value = self.visit(range_args[1])
                 end = self.get_constant_int_value(range_args[1])
                 step = 1
             elif len(range_args) == 3:
+                # start_value = self.visit(range_args[0])
                 start = self.get_constant_int_value(range_args[0])
+                # end_value = self.visit(range_args[1])
                 end = self.get_constant_int_value(range_args[1])
+                # step_value = self.visit(range_args[2])
                 step = self.get_constant_int_value(range_args[2])
             else:
                 raise NotImplementedError("range() only supports 1 to 3 parameters")
@@ -704,6 +769,7 @@ class MLIRGenerator(ast.NodeVisitor):
         if isinstance(target, ast.Name):
             target_id = target.id
             self.symbol_table[target_id] = value
+            self.variable_versions[target_id] = self.variable_versions.get(target_id, 0) + 1
         else:
             if isinstance(target, ast.Subscript):
                 with ir.InsertionPoint(self.block_stack[-1]):
@@ -750,6 +816,7 @@ class MLIRGenerator(ast.NodeVisitor):
                         raise NotImplementedError(f"Unsupported operator: {type(node.op)}")
             self.symbol_table[var_name] = op
         elif isinstance(target, ast.Subscript):
+            var_name = self.get_subscript_variable_name(target)
             current_value = self.visit(target)
             with ir.InsertionPoint(self.block_stack[-1]):
                 if isinstance(current_value.type, ir.F64Type):
@@ -783,6 +850,7 @@ class MLIRGenerator(ast.NodeVisitor):
             self.store_to_subscript(target, result)
         else:
             raise NotImplementedError(f"Unsupported assignment target: {type(target)}")
+        self.variable_versions[var_name] = self.variable_versions.get(var_name, 0) + 1
 
     def visit_Constant(self, node):
         value = node.value
