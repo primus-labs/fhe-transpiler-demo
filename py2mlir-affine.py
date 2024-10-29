@@ -4,99 +4,34 @@ from mlir.dialects import func, arith, affine, memref
 from mlir.ir import ShapedType
 import numpy as np
 
-
-code1 = '''
-def inner_product(a: list[float], b:list[float]) -> float:
-    result = 2
-    for j in range(2):
-        for i in range(1,4):
-            a[0] += result*a[i+1+j]
-    return result
-'''
-code2 = '''
-def inner_product(a: list[list[float]], b:list[float]) -> float:
-    result = [0]
-    c = 0
-    d = a[0][0]*b[0]
-    for j in range(2):
-        for i in range(1, 4):
-            result[0] += a[i][i+j]*b[j]
-    return result
-'''
-code3 = '''
-result=[0]
-result[0]=0
+boxblur = '''
+def encryptedBoxBlur_8x8(arg0:list[float,64], arg1:list[float, 64]):
+    for x in range(8):
+        for y in range(8):
+            value = 0.0
+            for j in range(3):
+                for i in range(3):
+                    value += arg0[((x+i-1)*8+y+j-1)%64 ]
+            arg1[(8*x+y)%64] = value
+    return arg1
 '''
 
-code4 = '''
-def inner_product(a: list[list[float,4],4], b:list[float,4], c:int) -> float:
-    result=[0]
-    for j in range(c):
-        for i in range(1, 4):
-            result[i] += a[i][i+j]*b[0]+result[0]
-    return result
+robertscross = '''
+def encryptedRobertsCross_32x32(img:list[float, 1024], output:list[float, 1024]):
+    for x in range(32):
+        for y in range(32):
+            val1 = img[((x - 1) * 32 + (y - 1)) % 1024]
+            val2 = img[(x * 32 + y) % 1024]
+            val3 = img[((x - 1) * 32 + y) % 1024]
+            val4 = img[(x * 32 + (y - 1)) % 1024]
+            diff1 = (val1 - val2)*(val1 - val2)
+            diff2 = (val3 - val4)*(val3 - val4)
+            output[(x * 32 + y) % 1024] = diff1 + diff2
+    return output
 '''
 
-code5 = '''
-a = [[1,2],[1,2]]
-n = 2
-for i in range(n):
-    for j in range(1, 4):
-        a[0][0] /= a[i][j-1]
-'''
-
-code6 = '''
-def test_mullist():
-    a = [2, 3]
-    d = [[1,1.0],[2,2]]
-    b = [3, 4.0]
-    # d[0][0] = 1
-    c = 0
-    for i in range(2):
-        a[i] /= a[i]/b[i]
-        b[i] %= b[i]
-    return c
-'''
-
-code7 = '''
-def inner_product(a: list[float], b:list[float]) -> float:
-    result = a[0]*b[0]
-    for i in range(1,4):
-        result += a[i]*b[i]
-    return result
-'''
-
-code8 = '''
-def euclid_dist(a: list[float], b:list[float]) -> float:
-    result = (a[0] - b[0]) * (a[0] - b[0])
-    for i in range(1, 4):
-        temp = a[i] - b[i]
-        result += temp * temp
-    return result
-def k(f: list[float], g:list[float]):
-    e = euclid_dist(f, g)
-    return e
-'''
-
-code9 = '''
-import array
-def BoxBlur(img: list[float, 4], img2: list[float]) -> float:
-    imgSize = 4
-    kerSize = 3
-    weightMatrix = [1.0, 1, 1, 1, 1, 1, 1, 1, 1]
-    for x in range(imgSize):
-        for y in range(imgSize):
-            value = 0
-            for i in range(3):
-                for j in range(3):
-                    value += weightMatrix[i*kerSize + j] * img[((x+i-1)*imgSize+ y + j - 1)%16]
-            img2[imgSize*x + y] = value
-    return_value = img2[0]
-    return return_value
-'''
-
-parsed_ast = ast.parse(code4)
-# print(ast.dump(parsed_ast, indent=2))
+parsed_ast = ast.parse(boxblur)
+# parsed_ast = ast.parse(robertscross)
 
 class MLIRGenerator(ast.NodeVisitor):
     def __init__(self, module):
