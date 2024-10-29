@@ -97,18 +97,18 @@ tools/emitc-translate $fileName$.mlir --mlir-to-cpp >> $fileName$.cpp
 
 Benchmarks:
 ```bash
-tools/heir-opt ../benchmarks/boxblur/boxblur.mlir /
-  --affine-loop-unroll="unroll-full unroll-num-reps=4" /
+tools/heir-opt ../benchmarks/boxblur/boxblur.mlir \
+  --affine-loop-unroll="unroll-full unroll-num-reps=4" \
   --arith-emitc >> ../benchmarks/boxblur/boxblur_emitc.mlir
 
-tools/emitc-translate ../benchmarks/boxblur/boxblur_emitc.mlir /
+tools/emitc-translate ../benchmarks/boxblur/boxblur_emitc.mlir \
   --mlir-to-cpp >> ../benchmarks/boxblur/boxblur.cpp
 ```
 ```bash
-tools/heir-opt ../benchmarks/robertscross/robertscross.mlir /
-  --affine-loop-unroll="unroll-full unroll-num-reps=4" /
+tools/heir-opt ../benchmarks/robertscross/robertscross.mlir \
+  --affine-loop-unroll="unroll-full unroll-num-reps=4" \
   --arith-emitc >> ../benchmarks/robertscross/robertscross_emitc.mlir
 
-tools/emitc-translate ../benchmarks/robertscross/robertscross_emitc.mlir /
+tools/emitc-translate ../benchmarks/robertscross/robertscross_emitc.mlir \
   --mlir-to-cpp >> ../benchmarks/robertscross/robertscross.cpp
 ```
