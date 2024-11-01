@@ -84,7 +84,7 @@ input program.
 + **--arith-emitc**:
 Can be replaced by **--arith2heir --canonicalize --memref2heir --canonicalize
 --func2heir --canonicalize --nary --canonicalize --cse --batching --canonicalize --cse
- --lwe2rlwe --canonicalize --canonicalize --combine --canonicalize --heir2emitc --canonicalize**
+ --lwe2rlwe --canonicalize --combine --canonicalize --heir2emitc --canonicalize**
 
 Next, can use `emitc-translate` to transform the MLIR file
 into a C++ file:
