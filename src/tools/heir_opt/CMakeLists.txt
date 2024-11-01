@@ -27,14 +27,11 @@ set(LIBS
         HEIRMemrefToHEIR
         HEIRFuncToHEIR
         HEIRHEIRToEmitC
-        HEIRGenParm
-        HEIRUnfold
-        # HEIREncrypt
+        HEIRCombineExtract
         HEIRBatching
         HEIRNary
         HEIRSlotToCoeff
         HEIRLWEToRLWE
-        HEIRBranch
         )
 add_llvm_executable(heir-opt heir-opt.cpp)
 
