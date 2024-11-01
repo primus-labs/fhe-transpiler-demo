@@ -52,11 +52,13 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
     {
         /// Target Slot (-1 => no target slot required)
         int target_slot = -1;
+        // op.dump();
 
         // TODO: as a basic fix, we only search one level deep for now.
         //  This prevents the issue mentioned above but of course might prevent optimizations for complex code
         for (auto u : op->getUsers())
         {
+            // llvm::errs()<<"\nget\n";
             if (FHEExtractfinalOp ex_op = dyn_cast_or_null<FHEExtractfinalOp>(u))
             {
                 // We later want this value to be in slot i??
@@ -65,7 +67,9 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
             }
             else if (FHEInsertfinalOp ins_op = dyn_cast_or_null<FHEInsertfinalOp>(u))
             {
+                // op.dump();
                 target_slot = ins_op.col().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
+                // llvm::errs()<<"\n"<<target_slot<<"\n";
                 break;
             }
             else if (auto ret_op = dyn_cast_or_null<func::ReturnOp>(u))
@@ -170,7 +174,8 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
                     auto i = (int)ex_op.col().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
                     if (target_slot == -1) // no other target slot defined yet, let's make this the target
                         target_slot = i; // we'll rotate by zero, but that's later canonicalized to no-op anyway
-                    auto rotate_op = rewriter.create<FHERotateOp>(ex_op.getLoc(), ex_op.vector().getType(), ex_op.vector(), target_slot - i);
+                    auto rotate_op = rewriter.create<FHERotateOp>(ex_op.getLoc(), ex_op.vector().getType(), ex_op.vector(), (target_slot - i + max_size) % max_size);
+                    // llvm::errs()<<"\n target_slot: "<<target_slot<<"\ni: "<<i<<"\n";
                     rewriter.replaceOpWithIf(
                         ex_op, { rotate_op }, [&](OpOperand &operand) { return operand.getOwner() == new_op; });
                 }
