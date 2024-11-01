@@ -12,15 +12,12 @@
 #include "heir/Passes/memref2heir/LowerMemrefToHEIR.h"
 #include "heir/Passes/heir2emitc/LowerHEIRToEmitC.h"
 #include "heir/Passes/func2heir/FuncToHEIR.h"
-#include "heir/Passes/genparm/GenParm.h"
-#include "heir/Passes/unfold/BranchUnfold.h"
-// #include "heir/Passes/encrypt/Encrypt.h"
 #include "heir/Passes/batching/Batching.h"
 #include "heir/Passes/nary/Nary.h"
 #include "heir/Passes/slot2coeff/SlotToCoeff.h"
 #include "heir/Passes/lwe2rlwe/LWEToRLWE.h"
-#include "heir/Passes/branch/Branch.h"
 #include "heir/Passes/unroll/UnrollLoop.h"
+#include "heir/Passes/combine/CombineExtract.h
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SourceMgr.h"
@@ -50,17 +47,20 @@ void arithPipelineBuilder(OpPassManager &manager)
     manager.addPass(createCanonicalizerPass());
     manager.addPass(std::make_unique<NaryPass>());
     manager.addPass(createCanonicalizerPass());
+    manager.addPass(createCSEPass());
     manager.addPass(std::make_unique<BatchingPass>());
     manager.addPass(createCanonicalizerPass());
+    manager.addPass(createCSEPass());
     manager.addPass(std::make_unique<LWEToRLWEPass>());
     manager.addPass(createCanonicalizerPass());
     manager.addPass(createCSEPass());
     manager.addPass(std::make_unique<SlotToCoeffPass>());
     manager.addPass(createCanonicalizerPass());
+    manager.addPass(std::make_unique<CombineExtractPass>());
+    manager.addPass(createCanonicalizerPass());
     manager.addPass(std::make_unique<LowerHEIRToEmitCPass>());
     manager.addPass(createCanonicalizerPass());
 }
-
 
 int main(int argc, char **argv)
 {
@@ -94,6 +94,7 @@ int main(int argc, char **argv)
     PassRegistration<UnrollLoopPass>();
     PassRegistration<FuncToHEIRPass>();
     PassRegistration<BatchingPass>();
+    PassRegistration<CombineExtractPass>();
     PassRegistration<NaryPass>();
     PassRegistration<SlotToCoeffPass>();
     PassRegistration<LWEToRLWEPass>();
