@@ -19,6 +19,7 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Dialect/Arithmetic/IR/ArithmeticBase.td"
+include "mlir/Interfaces/InferTypeOpInterface.td"
 // include "mlir/Dialect/Arith/IR/ArithBase.td"
 
 
@@ -522,6 +523,26 @@ def FHEFuncCallOp: HEIR_Op<"call", []> {
   );
 
   let results = (outs AnyType);
+}
+
+def HEIRCopyOp : HEIR_Op<"copy", []> {
+  let summary = "Copy data from source to target";
+  let description = [{
+    The `heir.copy` operation copies data from a source variable to a target variable.
+    This operation is used to replace sequences of `heir.extract` and `heir.insert`
+    operations that together represent a data copy.
+  }];
+
+  let arguments = (ins
+    AnyType:$source,
+    AnyType:$target
+  );
+
+  // let results = (outs
+  //   AnyType:$result
+  // );
+
+  // let assemblyFormat = "$source `:` type($source) `,` $target `:` type($target) attr-dict";
 }
 
 #endif // HEIR_OPS
