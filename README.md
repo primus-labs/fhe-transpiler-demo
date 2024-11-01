@@ -25,7 +25,7 @@ cd ../..
 ./setup_dependencies.sh
 ```
 
-## Run py2mlir.py or py2mlir-affine.py
+## Run py2mlir-affine.py
 In order to adapt to [HEIR](https://github.com/heir-compiler/HEIR),
 ```py2mlir-affine.py``` replaced scf with affine, which can be used
 to generate mlir using affine.load and affine.for.
@@ -36,13 +36,10 @@ To run the Front-End, first, set ```PYTHONPATH``` environment variables.
 export PYTHONPATH=llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
 ```
 
-Next, run ```py2mlir.py``` or ```py2mlir-affine.py```.
+Next, run ```py2mlir-affine.py```.
 
 ```bash
-python3 py2mlir.py
-```
-```bash
-python3 py2mlir-affine.py
+python py2mlir-affine.py $InputName$.py $OutputName$.mlir
 ```
 
 ## Configure Middle-End
@@ -74,7 +71,7 @@ cmake .. -DMLIR_DIR=/home/llvm-project/build/lib/cmake/mlir
 cmake --build . --target all
 ```
 
-### Using Demo
+## Using Demo
 In Middle-End, HEIR uses `heir-opt` CLI to transform the input
 MLIR program into programs with homomorphic operators 
 reprsented in `emitc` dialect. There are parameters for 
@@ -86,8 +83,8 @@ input program.
 
 + **--arith-emitc**:
 Can be replaced by **--arith2heir --canonicalize --memref2heir --canonicalize
---func2heir --canonicalize --nary --canonicalize --batching --canonicalize
-  --lwe2rlwe --canonicalize --cse --slot2coeff --canonicalize --heir2emitc --canonicalize**
+--func2heir --canonicalize --nary --canonicalize --cse --batching --canonicalize --cse
+  --lwe2rlwe --canonicalize  --canonicalize --heir2emitc --canonicalize**
 
 Next, can use `emitc-translate` to transform the MLIR file
 into a C++ file:
@@ -95,20 +92,41 @@ into a C++ file:
 tools/emitc-translate $fileName$.mlir --mlir-to-cpp >> $fileName$.cpp
 ```
 
-Benchmarks:
+Then can use `trans-cpp.py` to convert `.cpp` into `.cc` that [OpenPEGASUS](https://github.com/Alibaba-Gemini-Lab/OpenPEGASUS) can use:
 ```bash
-tools/heir-opt ../benchmarks/boxblur/boxblur.mlir \
-  --affine-loop-unroll="unroll-full unroll-num-reps=4" \
-  --arith-emitc >> ../benchmarks/boxblur/boxblur_emitc.mlir
+python trans-cpp.py $InputName$.cpp $OutputName$.cc [listlength]
+```
 
-tools/emitc-translate ../benchmarks/boxblur/boxblur_emitc.mlir \
-  --mlir-to-cpp >> ../benchmarks/boxblur/boxblur.cpp
+### Benchmarks:
+```bash
+python py2mlir-affine.py benchmarks/boxblur/boxblur.py benchmarks/boxblur/boxblur.mlir
+
+build/bin/heir-opt benchmarks/boxblur/boxblur.mlir \
+  --affine-loop-unroll="unroll-full unroll-num-reps=4" \
+  --arith-emitc >> benchmarks/boxblur/boxblur_emitc.mlir
+
+build/bin/emitc-translate benchmarks/boxblur/boxblur_emitc.mlir \
+  --mlir-to-cpp >> benchmarks/boxblur/boxblur.cpp
+
+python trans-cpp.py benchmarks/boxblur/boxblur.cpp benchmarks/boxblur/boxblur.cc 64
 ```
 ```bash
-tools/heir-opt ../benchmarks/robertscross/robertscross.mlir \
-  --affine-loop-unroll="unroll-full unroll-num-reps=4" \
-  --arith-emitc >> ../benchmarks/robertscross/robertscross_emitc.mlir
+python py2mlir-affine.py benchmarks/robertscross/robertscross.py benchmarks/robertscross/robertscross.mlir
 
-tools/emitc-translate ../benchmarks/robertscross/robertscross_emitc.mlir \
-  --mlir-to-cpp >> ../benchmarks/robertscross/robertscross.cpp
+build/bin/heir-opt benchmarks/robertscross/robertscross.mlir \
+  --affine-loop-unroll="unroll-full unroll-num-reps=4" \
+  --arith-emitc >> benchmarks/robertscross/robertscross_emitc.mlir
+
+build/bin/emitc-translate benchmarks/robertscross/robertscross_emitc.mlir \
+  --mlir-to-cpp >> benchmarks/robertscross/robertscross.cpp
+
+python trans-cpp.py benchmarks/robertscross/robertscross.cpp benchmarks/robertscross/robertscross.cc 1024
+```
+
+Then move the `.cc` file to the examples folder in OpenPEGASUS, modify the CMakeLists and build it, start from the build-release folder：
+```bash
+bin/boxblur_exe
+```
+```bash
+bin/robertscross_exe
 ```
