@@ -103,7 +103,7 @@ public:
                 return failure();
             }
             auto indexAttr = cOp.getValue().cast<IntegerAttr>();
-            rewriter.replaceOpWithNewOp<FHEInsertfinalOp>(op, op.value(), op.memref(), indexAttr, Attribute());
+            rewriter.replaceOpWithNewOp<FHEInsertfinalOp>(op, new_value, op.memref(), indexAttr, Attribute());
         }
         // LWECipherMatrix: two-dimensional data
         else if (indices_size == 2) {
