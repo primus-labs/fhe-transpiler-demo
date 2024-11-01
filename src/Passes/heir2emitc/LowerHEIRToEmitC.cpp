@@ -82,13 +82,13 @@ public:
         // build a series of calls to our custom heal operator wrapper
         std::string op_str = "";
         if (std::is_same<OpType, LWEAddOp>())
-            op_str = "lwe_addition";
+            op_str = "Add";
         else if (std::is_same<OpType, LWESubOp>())
-            op_str = "lwe_substraction";
+            op_str = "Sub";
         else if (std::is_same<OpType, LWEMulOp>())
-            op_str = "lwe_multiply";
+            op_str = "Mul";
         else if (std::is_same<OpType, RLWEMulOp>())
-            op_str = "rlwe_multiply";
+            op_str = "Mul";
         else
             return failure();
         
@@ -137,7 +137,7 @@ public:
                             rewriter.getSI32IntegerAttr(op.i()) });
 
         rewriter.replaceOpWithNewOp<emitc::CallOp>(
-            op, dstType, llvm::StringRef("bfv_rotate"), aa, ArrayAttr(), o);
+            op, dstType, llvm::StringRef("RotateLeft"), aa, ArrayAttr(), o);
         return success();
     }
 };
@@ -490,6 +490,30 @@ public:
     }
 };
 
+class EmitCCopyPattern final : public OpConversionPattern<HEIRCopyOp>
+{
+public:
+    using OpConversionPattern<HEIRCopyOp>::OpConversionPattern;
+    LogicalResult matchAndRewrite(
+        HEIRCopyOp op, typename HEIRCopyOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
+    {
+        rewriter.setInsertionPoint(op);
+        Type sourceType = typeConverter->convertType(op.source().getType());
+        Type targetType = typeConverter->convertType(op.target().getType());
+        auto new_source = typeConverter->materializeTargetConversion(rewriter, op.source().getLoc(),
+                                                                            sourceType, op.source());
+        auto new_target = typeConverter->materializeTargetConversion(rewriter, op.target().getLoc(),
+                                                                            targetType, op.target());
+        llvm::SmallVector<Value> materialized_operands;
+        materialized_operands.push_back(new_source);
+        materialized_operands.push_back(new_target);
+        rewriter.replaceOpWithNewOp<emitc::CallOp>(op, TypeRange(), llvm::StringRef("copy"),
+                                            ArrayAttr(), ArrayAttr(), materialized_operands);
+        return success();
+    }
+};
+
+
 // Transform the InsertOp into C++ function calls
 class EmitCInsertPattern final : public OpConversionPattern<FHEInsertfinalOp>
 {
@@ -548,15 +572,23 @@ public:
         }
         // For Vector
         else {
-            llvm::SmallVector<Value> materialized_operands1;
+            // llvm::SmallVector<Value> materialized_operands1;
             auto aaa = op.memref().getDefiningOp<FHEMaterializeOp>().getOperand();
             auto aaa1 = aaa.getDefiningOp<FHEMaterializeOp>().getOperand();
-            auto bbb = op.value().getDefiningOp<FHEMaterializeOp>().getOperand();
-            Type bbbType = typeConverter->convertType(bbb.getType());
-            auto bbb1 = typeConverter->materializeTargetConversion(rewriter, bbb.getLoc(), bbbType, bbb);
-            // llvm::errs()<<"\n"<<op.value().getDefiningOp<FHEMaterializeOp>().getOperand()<<"\n"<<aaa1<<"\n";
-            materialized_operands1.push_back(aaa1);
-            materialized_operands1.push_back(bbb1);
+            // auto bbb = op.value().getDefiningOp<FHEMaterializeOp>().getOperand();
+            // Type bbbType = typeConverter->convertType(bbb.getType());
+            // auto bbb1 = typeConverter->materializeTargetConversion(rewriter, bbb.getLoc(), bbbType, bbb);
+            // // llvm::errs()<<"\n"<<op.value().getDefiningOp<FHEMaterializeOp>().getOperand()<<"\n"<<aaa1<<"\n";
+            // materialized_operands1.push_back(aaa1);
+            // materialized_operands1.push_back(bbb1);
+            // auto new_vector = typeConverter->materializeTargetConversion(rewriter, op.memref().getLoc(),
+            //                                                                 dstVecType, op.memref());
+
+            auto new_valueToStore = typeConverter->materializeTargetConversion(rewriter, op.value().getLoc(),
+                                                                                dstValType, op.value());
+            llvm::SmallVector<Value> materialized_operands;
+            materialized_operands.push_back(aaa1);
+            materialized_operands.push_back(new_valueToStore);
             auto colAttr = op.colAttr().cast<IntegerAttr>();
 
             auto aa = ArrayAttr::get(
@@ -573,7 +605,7 @@ public:
             //              << "\n" << op.value() << "\n" << op.value().getLoc();
             // llvm::errs() <<"\n"<<op.value().getDefiningOp<FHEMaterializeOp>().getOperand()<<"\n"<<op.value().getDefiningOp<FHEMaterializeOp>().getOperand().getDefiningOp<FHEMaterializeOp>().getOperand()<<"\n";
             rewriter.replaceOpWithNewOp<emitc::CallOp>(op, TypeRange(), llvm::StringRef("insert"),
-                                            aa, ArrayAttr(), materialized_operands1);
+                                            aa, ArrayAttr(), materialized_operands);
             // llvm::errs() << "time5";
         }
 
@@ -790,7 +822,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
         if (t.isa<LWECipherType>())
             return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "LWECipher"));
         else if (t.isa<RLWECipherType>())
-            return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "RLWECipher"));
+            return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "Ctx"));
         else if (t.isa<LWECipherVectorType>())
             return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "std::vector<LWECipher>"));
         else if (t.isa<LWECipherMatrixType>())
@@ -826,7 +858,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
             }
             else if (old_type.dyn_cast_or_null<RLWECipherType>())
             {
-                if (ot.getValue().str() == "RLWECipher")
+                if (ot.getValue().str() == "Ctx")
                     return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<LWECipherVectorType>())
@@ -872,7 +904,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
             }
             else if (old_type.dyn_cast_or_null<RLWECipherType>())
             {
-                if (ot.getValue().str() == "RLWECipher")
+                if (ot.getValue().str() == "Ctx")
                     return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<LWECipherVectorType>())
@@ -921,7 +953,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
             assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materialize single values");
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<emitc::OpaqueType>())
-                if (ot.getValue().str() == "RLWECipher")
+                if (ot.getValue().str() == "Ctx")
                     return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
         else if (auto bst = t.dyn_cast_or_null<LWECipherVectorType>())
@@ -1007,7 +1039,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
         EmitCEncodePattern, EmitCLUTPattern<FHELUTForAddOp>, EmitCLUTPattern<FHELUTForSubOp>, EmitCLUTPattern<FHELUTForGTOp>,
         EmitCLUTPattern<FHELUTForLTOp>, EmitCLUTPattern<FHELUTOp>, EmitCBasicPattern<RLWEMulOp>, 
         EmitCReturnPattern, EmitCExtractPattern, EmitCVectorLoadPattern>(type_converter, patterns.getContext());
-    patterns.add<EmitCInsertPattern>(type_converter, patterns.getContext());
+    patterns.add<EmitCInsertPattern, EmitCCopyPattern>(type_converter, patterns.getContext());
 
     if (mlir::failed(mlir::applyPartialConversion(getOperation(), target, std::move(patterns))))
         signalPassFailure();
