@@ -97,7 +97,7 @@ Then can use `trans-cpp.py` to convert `.cpp` into `.cc` that [OpenPEGASUS](http
 python trans-cpp.py $InputName$.cpp $OutputName$.cc [listlength]
 ```
 
-### Benchmarks:
+### Benchmarks
 ```bash
 python py2mlir-affine.py benchmarks/boxblur/boxblur.py benchmarks/boxblur/boxblur.mlir
 
