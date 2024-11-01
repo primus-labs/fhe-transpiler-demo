@@ -1,3 +1,5 @@
+import sys
+import getopt
 import ast
 from mlir import ir
 from mlir.dialects import func, arith, affine, memref
@@ -30,7 +32,7 @@ def encryptedRobertsCross_32x32(img:list[float, 1024], output:list[float, 1024])
     return output
 '''
 
-parsed_ast = ast.parse(boxblur)
+# parsed_ast = ast.parse(boxblur)
 # parsed_ast = ast.parse(robertscross)
 
 class MLIRGenerator(ast.NodeVisitor):
@@ -833,9 +835,41 @@ class MLIRGenerator(ast.NodeVisitor):
                 raise NotImplementedError(f"Unsupported constant type: {type(value)}")
         return const_op.result
 
-with ir.Context() as ctx:
-    with ir.Location.unknown():
-        module = ir.Module.create()
-        generator = MLIRGenerator(module)
-        generator.visit(parsed_ast)
-        print(module)
+def main(argv):
+    input_file = ''
+    output_file = ''
+    try:
+        opts, args = getopt.getopt(argv, "h", ["input=", "output="])
+        if len(args) >= 2:
+            input_file = args[0]
+            output_file = args[1]
+        else:
+            raise getopt.GetoptError("Not enough arguments")
+    except getopt.GetoptError as e:
+        print("Usage: python mlir_generator.py <inputname> <outputname>")
+        sys.exit(2)
+
+    try:
+        with open(input_file, 'r') as infile:
+            input_str = infile.read()
+    except FileNotFoundError:
+        print(f"File {input_file} not found.")
+        sys.exit(1)
+
+    try:
+        parsed_ast = ast.parse(input_str)
+        with ir.Context() as ctx:
+            with ir.Location.unknown():
+                module = ir.Module.create()
+                generator = MLIRGenerator(module)
+                generator.visit(parsed_ast)
+                with open(output_file, 'w') as outfile:
+                    outfile.write(str(module))
+        print(f"MLIR code has been written to {output_file}")
+    except Exception as e:
+        print(f"Error while parsing or generating MLIR: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
+
