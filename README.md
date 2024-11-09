@@ -108,7 +108,7 @@ build/bin/heir-opt benchmarks/boxblur/boxblur.mlir \
 build/bin/emitc-translate benchmarks/boxblur/boxblur_emitc.mlir \
   --mlir-to-cpp >> benchmarks/boxblur/boxblur.cpp
 
-python trans-cpp.py benchmarks/boxblur/boxblur.cpp benchmarks/boxblur/boxblur.cc 64
+python trans-cpp.py benchmarks/boxblur/boxblur.cpp benchmarks/boxblur/boxblur.cc benchmarks/boxblur/test.png
 ```
 ```bash
 python py2mlir-affine.py benchmarks/robertscross/robertscross.py benchmarks/robertscross/robertscross.mlir
@@ -120,13 +120,20 @@ build/bin/heir-opt benchmarks/robertscross/robertscross.mlir \
 build/bin/emitc-translate benchmarks/robertscross/robertscross_emitc.mlir \
   --mlir-to-cpp >> benchmarks/robertscross/robertscross.cpp
 
-python trans-cpp.py benchmarks/robertscross/robertscross.cpp benchmarks/robertscross/robertscross.cc 1024
+python trans-cpp.py benchmarks/robertscross/robertscross.cpp benchmarks/robertscross/robertscross.cc benchmarks/robertscross/test.png
 ```
 
-Then move the `.cc` file to the examples folder in OpenPEGASUS, modify the CMakeLists and build it, start from the build-release folder：
+Then move the `.cc` file and to the examples folder in OpenPEGASUS, modify the CMakeLists and build it, start from the build-release folder：
 ```bash
 bin/boxblur_exe
 ```
 ```bash
 bin/robertscross_exe
 ```
+
+Use `convertimg.py` to convert txt to png. First, move the file to the build-release folder, and then execute the following command:
+```bash
+python convertimg.py
+```
+
+The `output_image.png` is the final output image.
