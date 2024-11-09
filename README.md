@@ -94,7 +94,7 @@ tools/emitc-translate $fileName$.mlir --mlir-to-cpp >> $fileName$.cpp
 
 Then can use `trans-cpp.py` to convert `.cpp` into `.cc` that [OpenPEGASUS](https://github.com/Alibaba-Gemini-Lab/OpenPEGASUS) can use:
 ```bash
-python trans-cpp.py $InputName$.cpp $OutputName$.cc [listlength]
+python trans-cpp.py $InputName$.cpp $OutputName$.cc $InputImage$.png
 ```
 
 ### Benchmarks
