@@ -1,6 +1,8 @@
 import re
 import sys
 import getopt
+import cv2
+import numpy as np
 
 def parse_function(function_str):
     lines = function_str.strip().split('\n')
@@ -57,7 +59,8 @@ def generate_pegasus_code(function_name, param_names, statements, nslots):
                 code += f'    Ctx {var_name} = rlwe_substraction({operands[0]}, {operands[1]}, pg_rt);\n'
             elif operation == 'lwe_multiply':
                 if operands[0] == operands[1]:
-                    code += f'    Ctx {var_name} = pg_rt.Square({operands[0]});\n'
+                    code += f'    pg_rt.Square({operands[0]});\n'
+                    code += f'    Ctx {var_name} = {operands[0]}\n'
                     code += f'    pg_rt.RelinThenRescale({var_name});\n'
                 else:
                     code += f'    Ctx {var_name} = rlwe_multiply({operands[0]}, {operands[1]}, pg_rt);\n'
@@ -105,7 +108,8 @@ Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
 '''
 
 # Test Fuction
-# Ctx encryptedBoxBlur_8x8(Ctx v1, Ctx v2) {
+# function_str = '''
+    # Ctx encryptedBoxBlur_8x8(Ctx v1, Ctx v2) {
     # Ctx v3 = RotateLeft(v1, 55);
     # Ctx v4 = RotateLeft(v1, 63);
     # Ctx v5 = RotateLeft(v1, 7);
@@ -118,7 +122,9 @@ Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
     # copy(v11, v2);
     # return v2;
     # }
-# Ctx encryptedRobertsCross_32x32(Ctx v1, Ctx v2) {
+    # '''
+# function_str = '''
+    # Ctx encryptedRobertsCross_32x32(Ctx v1, Ctx v2) {
     # Ctx v3 = RotateLeft(v1, 991);
     # Ctx v4 = Sub(v1, v3);
     # Ctx v5 = lwe_multiply(v4, v4);
@@ -131,22 +137,21 @@ Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
     # copy(v11, v2);
     # return v2;
     # }
+# '''
 def main(argv):
     input_file = ''
     output_file = ''
+    image_path = ''
     try:
-        opts, args = getopt.getopt(argv, "h", ["input=", "output="])
-        if len(args) == 2:
+        opts, args = getopt.getopt(argv, "h", ["input=", "output=", "image="])
+        if len(args) == 3:
             input_file = args[0]
             output_file = args[1]
-        elif len(args) == 3:
-            input_file = args[0]
-            output_file = args[1]
-            nslots_input = args[2]
+            image_path = args[2]
         else:
             raise getopt.GetoptError("Not enough arguments")
     except getopt.GetoptError as e:
-        print("Usage: python trans-cpp.py <inputname> <outputname> (listlength)")
+        print("Usage: python trans-cpp.py <inputname> <outputname> <image_path>")
         sys.exit(2)
 
     try:
@@ -155,22 +160,24 @@ def main(argv):
     except FileNotFoundError:
         print(f"File {input_file} not found.")
         sys.exit(1)
-    try:
-        nslots_input
-    except UnboundLocalError:
-        nslots_input = input("Please input the value for nslots: ")
-    try:
-        nslots = int(nslots_input)
-    except ValueError:
-        print("Invalid input for nslots. Using default value 1024.")
-        nslots = 1024
+
+    # Load the grayscale image
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        print(f"Could not open or find the image: {image_path}")
+        sys.exit(1)
+
+    height, width = image.shape
+    nslots = height * width
+    slots = image.flatten().astype(np.float64)  # Normalize pixel values
+
 
     function_name, param_names, statements = parse_function(function_str)
 
     code = ''
     code += '#include "pegasus/pegasus_runtime.h"\n'
     code += '#include "pegasus/timer.h"\n'
-    code += '#include <iostream>\n'
+    code += '#include <iostream>\n#include <fstream>\n'
     code += '#include <vector>\n'
     code += '#include <random>\n'
     code += 'using namespace gemini;\n'
@@ -191,9 +198,9 @@ def main(argv):
     code += '    pp.s2c_multiplier = 1.;\n'
     code += '    pp.enable_repacking = false;\n\n'
     code += '    PegasusRunTime pg_rt(pp, 4);\n\n'
-
-    code += '    F64Vec slots;\n'
-    code += f'    slots.resize(pp.nslots, 1.0);\n\n'
+    code += '    F64Vec slots = {' + ', '.join(map(str, slots)) + '};\n'
+    # code += '    F64Vec slots;\n'
+    # code += f'    slots.resize(pp.nslots, 1.0);\n\n'
 
     for param in param_names:
         code += f'    Ctx {param};\n'
@@ -206,10 +213,20 @@ def main(argv):
     code += '    F64Vec output(pp.nslots);\n'
     code += '    CHECK_AND_ABORT(pg_rt.DecryptThenDecode(result, pp.nslots, output));\n\n'
 
-    code += '    // Output result\n'
-    code += '    for (size_t i = 0; i < pp.nslots; ++i) {\n'
-    code += '        std::cout << output[i] << " ";\n'
-    code += '        if ((i + 1) % 16 == 0) std::cout << std::endl;\n'
+    code += '    // Output result to a file\n'
+    code += '    std::ofstream outfile("output_image.txt");\n'
+    code += '    if (outfile.is_open()) {\n'
+    code += f'        for (size_t i = 0; i < {height}; ++i) {chr(123)}\n'
+    code += f'            for (size_t j = 0; j < {width}; ++j) {chr(123)}\n'
+    code += f'                size_t index = i * {width} + j;\n'
+    code += '                outfile << output[index] << " ";\n'
+    code += '            }\n'
+    code += '            outfile << std::endl;\n'
+    code += '        }\n'
+    code += '        outfile.close();\n'
+    code += '        std::cout << "Data successfully saved to output_image.txt" << std::endl;\n'
+    code += '    } else {\n'
+    code += '        std::cerr << "Unable to open file for writing." << std::endl;\n'
     code += '    }\n'
     code += '    return 0;\n'
     code += '}'
