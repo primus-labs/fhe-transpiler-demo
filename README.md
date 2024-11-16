@@ -45,7 +45,7 @@ python py2mlir-affine.py $InputName$.py $OutputName$.mlir
 
 ## Configure Middle-End
 ### Installation
-Start with ``fhe-transpiler-demo`` directory.
+Start with ``fhe-transpiler-demo-main`` directory.
 
 Clone llvm-15 from Github. Note that LLVM-15 used for fhe-transpiler-demo
 Middle-End is not compatiable with LLVM for building Front-End.
