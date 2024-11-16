@@ -14,7 +14,7 @@ mkdir build
 cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="mlir"    \
 -DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host"          \
 -DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE=$(which python3) \
--DMLIR_ENABLE_BINDINGS_PYTHON=ON -DLLVM_ENABLE_RTTI=ON
+-DMLIR_ENABLE_BINDINGS_PYTHON=ON -DLLVM_ENABLE_RTTI=ON -DCMAKE_INSTALL_PREFIX=~/mylibs
 cd build
 ninja install
 cd ../..
