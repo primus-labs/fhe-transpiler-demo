@@ -68,7 +68,7 @@ Build fhe-transpiler-demo.
 ```sh
 cd ../../fhe-transpiler-demo-main
 mkdir build && cd build
-cmake .. -DMLIR_DIR=/home/llvm-project/build/lib/cmake/mlir
+cmake .. -DMLIR_DIR=/home/llvm-project/build/lib/cmake/mlir -DCMAKE_INSTALL_PREFIX=~/mylibs
 cmake --build . --target all
 ```
 
