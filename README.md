@@ -60,13 +60,13 @@ Build LLVM/MLIR.
 mkdir build && cd build
 cmake -G Ninja ../llvm -DLLVM_ENABLE_PROJECTS="mlir" -DLLVM_BUILD_EXAMPLES=ON \
 -DLLVM_TARGETS_TO_BUILD="X86" -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON \
--DLLVM_INSTALL_UTILS=ON
+-DLLVM_INSTALL_UTILS=ON -DCMAKE_INSTALL_PREFIX=~/mylibs
 ninja -j N
 ```
 
 Build fhe-transpiler-demo.
 ```sh
-cd ../../fhe-transpiler-demo
+cd ../../fhe-transpiler-demo-main
 mkdir build && cd build
 cmake .. -DMLIR_DIR=/home/llvm-project/build/lib/cmake/mlir
 cmake --build . --target all
