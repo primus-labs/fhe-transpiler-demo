@@ -17,7 +17,7 @@
 #include "heir/Passes/slot2coeff/SlotToCoeff.h"
 #include "heir/Passes/lwe2rlwe/LWEToRLWE.h"
 #include "heir/Passes/unroll/UnrollLoop.h"
-#include "heir/Passes/combine/CombineExtract.h
+#include "heir/Passes/combine/CombineExtract.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SourceMgr.h"
