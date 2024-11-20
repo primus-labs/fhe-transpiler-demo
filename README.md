@@ -45,7 +45,7 @@ python py2mlir-affine.py $InputName$.py $OutputName$.mlir
 
 ## Configure Middle-End
 ### Installation
-Start with ``fhe-transpiler-demo-main`` directory.
+Start with ``fhe-transpiler-demo`` directory.
 
 Clone llvm-15 from Github. Note that LLVM-15 used for fhe-transpiler-demo
 Middle-End is not compatiable with LLVM for building Front-End.
@@ -66,7 +66,7 @@ ninja -j N
 
 Build fhe-transpiler-demo.
 ```sh
-cd ../../fhe-transpiler-demo-main
+cd ../../fhe-transpiler-demo
 mkdir build && cd build
 cmake .. -DMLIR_DIR=/home/llvm-project/build/lib/cmake/mlir -DCMAKE_INSTALL_PREFIX=~/mylibs
 cmake --build . --target all

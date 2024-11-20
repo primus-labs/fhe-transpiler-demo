@@ -24,6 +24,8 @@ class Compiler:
         self.openpegasus_path = paths.get('OPENPEGASUS_PATH')
         self.heir_opt_path = os.path.join(self.fhe_transpiler_path, 'build/bin/heir-opt')
         self.emitc_translate_path = os.path.join(self.fhe_transpiler_path, 'build/bin/emitc-translate')
+        self.output_txt_path = None
+        self.exe_path = None
 
     def back_to_fhe_transpiler(self):
         back_command = ['cd', self.fhe_transpiler_path]
@@ -96,7 +98,7 @@ target_link_libraries({base_name}_exe pegasus)
                 return False
         return True 
 
-    def compile_and_run_pegasus(self, exe_path):
+    def compile_pegasus(self, exe_path):
         build_dir = os.path.join(self.openpegasus_path, "build-release/")
         if os.path.exists(build_dir):
             if self.is_directory_empty(build_dir):
@@ -125,8 +127,18 @@ target_link_libraries({base_name}_exe pegasus)
         ]
         subprocess.run(pegasus_compile_command1, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.run(pegasus_compile_command2, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        print("Build OpenPEGASUS: Done.")
-        subprocess.run(exe_path, check=True)
+
+    def run(self):
+        if self.exe_path == None:
+            raise ValueError('The executable file has not been generated yet, please compile the function first.')
+        else:
+            subprocess.run(self.exe_path, check=True)
+            output_txt = np.loadtxt(self.output_txt_path)
+            height, width = output_txt.shape
+            output_image = Imageplain(output_txt.flatten(), height, width)
+            delete_command = ['rm', self.output_txt_path]
+            subprocess.run(delete_command)
+            return output_image
 
     def compile_plain(self, function, image):
         function_name = function.__name__
@@ -147,27 +159,18 @@ target_link_libraries({base_name}_exe pegasus)
 
         cc_output_path = os.path.join(benchmark_path, f'{function_name}.cc')
         output_txt_path = os.path.join(benchmark_path, 'output_image.txt')
+        self.output_txt_path = output_txt_path
         cpptranspiler = OpenPEGASUSGenerator(emitc_cpp_output_path)
         cpptranspiler.cpptocc(cc_output_path, output_txt_path, image)
         print("CPP to CC: Done.")
 
         exe_path = self.movecctopegasus(cc_output_path)
-        self.compile_and_run_pegasus(exe_path)
-        print("Compile and run OpenPEGASUS: Done.")
-
-        output_txt = np.loadtxt(output_txt_path)
-        height, width = output_txt.shape
-        output_image = Imageplain(output_txt.flatten(), height, width)
-        delete_command = ['rm', output_txt_path]
-        subprocess.run(delete_command)
-
-        return output_image
+        self.exe_path = exe_path
+        self.compile_pegasus(exe_path)
+        print("Compile OpenPEGASUS: Done.")
 
 
-    def compile_cipher(self, function, image):
-        return 0
-
-    def compile(self, function, image):
-        if isinstance(image, Imageplain):
-            output = self.compile_plain(function, image)
+    def compile(self, function, parameters):
+        if isinstance(parameters, Imageplain):
+            output = self.compile_plain(function, parameters)
             return output
