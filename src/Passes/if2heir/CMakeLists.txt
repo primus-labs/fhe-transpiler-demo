@@ -1,5 +1,5 @@
-add_heir_conversion_library(HEIRSlotToCoeff
-        SlotToCoeff.cpp
+add_heir_conversion_library(HEIRReplaceIfWithLut
+        ReplaceIfWithLut.cpp
 
         #ADDITIONAL_HEADER_DIRS
         #Passes

@@ -14,7 +14,6 @@ set(LIBS
         MLIRIR
         MLIRLLVMCommonConversion
         MLIRLLVMToLLVMIRTranslation
-        # MLIRMemRef
         MLIRParser
         MLIRPass
         MLIRInferTypeOpInterface
@@ -30,8 +29,8 @@ set(LIBS
         HEIRCombineExtract
         HEIRBatching
         HEIRNary
-        HEIRSlotToCoeff
         HEIRLWEToRLWE
+        HEIRReplaceIfWithLut
         )
 add_llvm_executable(heir-opt heir-opt.cpp)
 

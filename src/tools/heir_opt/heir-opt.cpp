@@ -14,9 +14,9 @@
 #include "heir/Passes/func2heir/FuncToHEIR.h"
 #include "heir/Passes/batching/Batching.h"
 #include "heir/Passes/nary/Nary.h"
-#include "heir/Passes/slot2coeff/SlotToCoeff.h"
 #include "heir/Passes/lwe2rlwe/LWEToRLWE.h"
 #include "heir/Passes/unroll/UnrollLoop.h"
+#include "heir/Passes/if2heir/ReplaceIfWithLut.h"
 #include "heir/Passes/combine/CombineExtract.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
@@ -54,7 +54,7 @@ void arithPipelineBuilder(OpPassManager &manager)
     manager.addPass(std::make_unique<LWEToRLWEPass>());
     manager.addPass(createCanonicalizerPass());
     manager.addPass(createCSEPass());
-    manager.addPass(std::make_unique<SlotToCoeffPass>());
+    manager.addPass(std::make_unique<ReplaceIfWithLutPass>());
     manager.addPass(createCanonicalizerPass());
     manager.addPass(std::make_unique<CombineExtractPass>());
     manager.addPass(createCanonicalizerPass());
@@ -95,8 +95,8 @@ int main(int argc, char **argv)
     PassRegistration<FuncToHEIRPass>();
     PassRegistration<BatchingPass>();
     PassRegistration<CombineExtractPass>();
+    PassRegistration<ReplaceIfWithLutPass>();
     PassRegistration<NaryPass>();
-    PassRegistration<SlotToCoeffPass>();
     PassRegistration<LWEToRLWEPass>();
 
     PassPipelineRegistration<>("arith-emitc", "convert arithmetic circuit to emitc", arithPipelineBuilder);

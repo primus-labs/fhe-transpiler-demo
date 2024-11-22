@@ -22,11 +22,18 @@ def encryptedRobertsCross_64x64(img:list[float, 4096], output:list[float, 4096])
             output[(x * 64 + y) % 4096] = diff1 + diff2
     return output
 
+def binary64x64(arg0:list[float, 4096], arg1:list[float, 4096]):
+    for i in range(4096):
+        if arg0[i] > 125:
+            arg1[i] = 255
+        else:
+            arg1[i] = 0
+    return arg1
 
 compiler = fhecomplr.Compiler()
-img = compiler.read("/home/fhetran/fhe-transpiler-demo/benchmarks/boxblur/test.png")
+img = compiler.read("/home/fhetran/fhe-transpiler-demo/benchmarks/binary/test.png")
 img.show()
-output_image = compiler.compile(encryptedRobertsCross_64x64, img)
+output_image = compiler.compile(binary64x64, img)
 output_image.show()
-output_image.save("/home/fhetran/fhe-transpiler-demo-main/benchmarks/encryptedRobertsCross_64x64.png")
+output_image.save("/home/fhetran/fhe-transpiler-demo-main/benchmarks/binary64x64.png")
 

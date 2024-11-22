@@ -41,29 +41,6 @@ def HEIR_Dialect : Dialect {
   let useDefaultTypePrinterParser = 1;
 }
 
-// def FHECmpPredicateAttr : I64EnumAttr<
-//     "FHECmpPredicate", "",
-//     [
-//       // I64EnumAttrCase<"AlwaysFalse", 0, "false">,
-//       I64EnumAttrCase<"OEQ", 1, "oeq">,
-//       I64EnumAttrCase<"OGT", 2, "ogt">,
-//       I64EnumAttrCase<"OGE", 3, "oge">,
-//       I64EnumAttrCase<"OLT", 4, "olt">,
-//       I64EnumAttrCase<"OLE", 5, "ole">,
-//       I64EnumAttrCase<"ONE", 6, "one">,
-//       I64EnumAttrCase<"ORD", 7, "ord">,
-//       I64EnumAttrCase<"UEQ", 8, "ueq">,
-//       I64EnumAttrCase<"UGT", 9, "ugt">,
-//       I64EnumAttrCase<"UGE", 10, "uge">,
-//       I64EnumAttrCase<"ULT", 11, "ult">,
-//       I64EnumAttrCase<"ULE", 12, "ule">,
-//       I64EnumAttrCase<"UNE", 13, "une">,
-//       I64EnumAttrCase<"UNO", 14, "uno">,
-//       // I64EnumAttrCase<"AlwaysTrue", 15, "true">,
-//     ]> {
-//   let cppNamespace = "::heir";
-// }
-
 // Base class for toy dialect operations. This operation inherits from the base
 // `Op` class in OpBase.td, and provides:
 //   * The parent dialect of the operation.
@@ -103,10 +80,6 @@ def Plain : TypeDef<HEIR_Dialect, "Plain"> {
   let mnemonic = "plain";
 
   let summary = "Plain";
-
-  // let parameters = (ins
-  //     "Type":$plaintextType    
-  // );
 }
 
 def Int : TypeDef<HEIR_Dialect, "Int"> {
@@ -253,8 +226,6 @@ def FHEDefineOp : HEIR_Op<"define",
     Convert variable assignment in C program to ciphertext definition in FHE porgram
   }];
 
-  // let arguments = (ins AnyType:$input);
-
   let results = (outs HEIR_Type:$output);
 }
 
@@ -279,8 +250,6 @@ def FHEExtractOp : HEIR_Op<"extract_init",
 
   let arguments = (ins AnyType:$vector, Variadic<AnyType>:$i);
   let results = (outs AnyType:$result);
-  // let assemblyFormat = "$vector `[` $i `]` attr-dict `:` type($result)";
-
 }
 
 def FHEExtractfinalOp : HEIR_Op<"extract", 
@@ -293,10 +262,6 @@ def FHEExtractfinalOp : HEIR_Op<"extract",
   let arguments = (ins AnyTypeOf<[LWECipherVector,LWECipherMatrix,RLWECipher,RLWECipherVector]>:$vector,
                     AnyAttr:$col, OptionalAttr<AnyAttr>:$row);
   let results = (outs LWECipher:$result);
-  // let assemblyFormat = [{
-  //   $vector `[` $i `]`  attr-dict `:` type($result)
-  // }];
-
 }
 
 def FHEInsertOp : HEIR_Op<"insert_init",
@@ -307,7 +272,6 @@ def FHEInsertOp : HEIR_Op<"insert_init",
   }];
 
   let arguments = (ins AnyType:$value, AnyType:$memref, Variadic<AnyType>:$index);
-  // let results = (outs AnyType:$result);
 }
 
 
@@ -319,7 +283,6 @@ def FHEInsertfinalOp : HEIR_Op<"insert",
   }];
 
   let arguments = (ins AnyType:$value, AnyType:$memref,  AnyAttr:$col, OptionalAttr<AnyAttr>:$row);
-  // let results = (outs AnyType:$result);
 }
 
 def LWEMulOp : HEIR_Op<"lwemul",
@@ -329,14 +292,10 @@ def LWEMulOp : HEIR_Op<"lwemul",
     The "add" operation performs element-wise addition between two tensors.
     The shapes of the tensor operands are expected to match.
   }];
-
-  // let arguments = (ins LWECipher:$lhs, LWECipher:$rhs);
   let arguments = (ins
-    // AnyType:$lhs, AnyType:$rhs
     Variadic<AnyType>:$x
   );
   let results = (outs 
-    // Variadic<AnyType>:$output);
     AnyType:$output);
 }
 
@@ -363,14 +322,10 @@ def LWEAddOp : HEIR_Op<"lweadd",
     The "add" operation performs element-wise addition between two tensors.
     The shapes of the tensor operands are expected to match.
   }];
-
-  // let arguments = (ins LWECipher:$lhs, LWECipher:$rhs);
   let arguments = (ins
-    // AnyType:$lhs, AnyType:$rhs
     Variadic<AnyType>:$x
   );
   let results = (outs 
-    // Variadic<AnyType>:$output);
     AnyType:$output);
 
 }
@@ -383,13 +338,10 @@ def LWESubOp : HEIR_Op<"lwesub",
     The shapes of the tensor operands are expected to match.
   }];
 
-  // let arguments = (ins LWECipher:$lhs, LWECipher:$rhs);
   let arguments = (ins
-    // AnyType:$lhs, AnyType:$rhs
     Variadic<AnyType>:$x
   );
   let results = (outs 
-    // Variadic<AnyType>:$output);
     AnyType:$output);
 
 }
@@ -426,8 +378,6 @@ def FHECmpOp: HEIR_Op<"compare", []> {
                        AnyType:$rhs);
   
   let results = (outs AnyType:$result);
-
-  // let hasFolder = 1;
 }
 
 def FHESelectOp: HEIR_Op<"select", []> {
@@ -454,8 +404,6 @@ def FHEVectorLoadOp: HEIR_Op<"vector_load_init", []> {
   let arguments = (ins AnyType:$memref, AnyType:$indices);
 
   let results = (outs AnyType:$result);
-
-  // let hasFolder = 1;
 
 }
 
@@ -537,12 +485,27 @@ def HEIRCopyOp : HEIR_Op<"copy", []> {
     AnyType:$source,
     AnyType:$target
   );
-
-  // let results = (outs
-  //   AnyType:$result
-  // );
-
-  // let assemblyFormat = "$source `:` type($source) `,` $target `:` type($target) attr-dict";
 }
+
+def HEIRLutOp : HEIR_Op<"comparelut", []> {
+  let summary = "Heir lookup table operation";
+  let description = [{
+    Perform threshold based search operation, and output corresponding boundary
+    values based on the comparison between the input value and the threshold.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    F32Attr:$edge2,
+    F32Attr:$edge1,
+    F32Attr:$threshold
+  );
+
+  let results = (outs
+    AnyType:$output
+  );
+
+}
+
 
 #endif // HEIR_OPS

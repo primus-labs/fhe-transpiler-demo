@@ -4,13 +4,14 @@ class OpenPEGASUSGenerator():
     def __init__(self, function_file_path):
         self.function_str = open(function_file_path, 'r').read()
         self.function_name, self.param_names, self.statements = self.parse_function()
+        self.var_types = self.determine_var_types()
+        self.contains_comparelut = any(stmt[0] == 'comparelut' for stmt in self.statements)
         self.pegasus_code = self.generate_pegasus_code(self.function_name, self.param_names, self.statements)
 
     def parse_function(self):
         lines = self.function_str.strip().split('\n')
         function_header = lines[0]
         function_body = lines[1:-1] 
-
         match = re.match(r'Ctx\s+(\w+)\s*\((.*)\)\s*{', function_header)
         if not match:
             raise ValueError("Invalid function header")
@@ -23,12 +24,19 @@ class OpenPEGASUSGenerator():
         for line in function_body:
             line = line.strip()
             if line.startswith('Ctx '):
-                match = re.match(r'Ctx\s+(\w+)\s*=\s*(\w+)\((.*)\);', line)
-                if match:
-                    var_name = match.group(1)
-                    operation = match.group(2)
-                    operands = [operand.strip() for operand in match.group(3).split(',')]
-                    statements.append(('declare_assign', var_name, operation, operands))
+                comparelut_match = re.match(r'Ctx\s+(\w+)\s*=\s*comparelut<(.+?)>\((\w+)\);', line)
+                if comparelut_match:
+                    var_name = comparelut_match.group(1)
+                    template_args = comparelut_match.group(2).split(',')
+                    input_var = comparelut_match.group(3)
+                    statements.append(('comparelut', var_name, input_var, template_args))
+                else:
+                    match = re.match(r'Ctx\s+(\w+)\s*=\s*(\w+)\((.*)\);', line)
+                    if match:
+                        var_name = match.group(1)
+                        operation = match.group(2)
+                        operands = [operand.strip() for operand in match.group(3).split(',')]
+                        statements.append(('declare_assign', var_name, operation, operands))
             elif line.startswith('copy('):
                 match = re.match(r'copy\((\w+),\s*(\w+)\);', line)
                 if match:
@@ -42,35 +50,75 @@ class OpenPEGASUSGenerator():
                     statements.append(('return', ret_var))
         return function_name, param_names, statements
 
+    def determine_var_types(self):
+        var_types = {param: 'Ctx' for param in self.param_names}
+        for stmt in self.statements:
+            if stmt[0] == 'declare_assign':
+                var_name = stmt[1]
+                var_types[var_name] = 'Ctx'
+            elif stmt[0] == 'comparelut':
+                var_name = stmt[1]
+                var_types[var_name] = 'std::vector<lwe::Ctx_st>'
+            elif stmt[0] == 'copy':
+                src = stmt[1]
+                dest = stmt[2]
+                if src in var_types:
+                    var_types[dest] = var_types[src]
+            elif stmt[0] == 'return':
+                pass 
+        return var_types
+
     def generate_pegasus_code(self, function_name, param_names, statements):
-        code = f'Ctx {function_name}(' + ', '.join([f'Ctx &{param}' for param in param_names]) + ', PegasusRunTime &pg_rt)\n'
+        var_types = self.var_types
+        ret_var = statements[-1][1] if statements and statements[-1][0] == 'return' else None
+        if ret_var and var_types.get(ret_var) == 'std::vector<lwe::Ctx_st>':
+            return_type = 'std::vector<lwe::Ctx_st>'
+        else:
+            return_type = 'Ctx'
+
+        adjusted_params = []
+        for param in param_names:
+            param_type = var_types.get(param, 'Ctx')
+            adjusted_params.append(f'{param_type} &{param}')
+
+        code = f'{return_type} {function_name}(' + ', '.join(adjusted_params) + ', PegasusRunTime &pg_rt)\n'
         code += '{\n'
-        var_defs = {}
+
         for stmt in statements:
             if stmt[0] == 'declare_assign':
                 var_name = stmt[1]
                 operation = stmt[2]
                 operands = stmt[3]
+                var_type = var_types.get(var_name, 'Ctx')
+                code += f'    {var_type} {var_name};\n'
                 if operation == 'RotateLeft':
-                    code += f'    Ctx {var_name} = RotateLeft({operands[0]}, {operands[1]}, pg_rt);\n'
+                    code += f'    {var_name} = RotateLeft({operands[0]}, {operands[1]}, pg_rt);\n'
                 elif operation == 'Add':
-                    code += f'    Ctx {var_name} = rlwe_addition({operands[0]}, {operands[1]}, pg_rt);\n'
+                    code += f'    {var_name} = rlwe_addition({operands[0]}, {operands[1]}, pg_rt);\n'
                     for operand in operands[2:]:
                         code += f'    {var_name} = rlwe_addition({var_name}, {operand}, pg_rt);\n'
                 elif operation == 'Sub':
-                    code += f'    Ctx {var_name} = rlwe_substraction({operands[0]}, {operands[1]}, pg_rt);\n'
+                    code += f'    {var_name} = rlwe_substraction({operands[0]}, {operands[1]}, pg_rt);\n'
                 elif operation == 'lwe_multiply':
                     if operands[0] == operands[1]:
                         code += f'    pg_rt.Square({operands[0]});\n'
-                        code += f'    Ctx {var_name} = {operands[0]};\n'
+                        code += f'    {var_name} = {operands[0]};\n'
                         code += f'    pg_rt.RelinThenRescale({var_name});\n'
                     else:
-                        code += f'    Ctx {var_name} = rlwe_multiply({operands[0]}, {operands[1]}, pg_rt);\n'
-                var_defs[var_name] = True
-                var_defs[var_name] = True
+                        code += f'    {var_name} = rlwe_multiply({operands[0]}, {operands[1]}, pg_rt);\n'
+            elif stmt[0] == 'comparelut':
+                var_name = stmt[1]
+                input_var = stmt[2]
+                template_args = stmt[3]
+                threshold = template_args[-1]
+                code += f'    std::vector<lwe::Ctx_st> {var_name};\n'
+                code += f'    pg_rt.ExtraAllCoefficients({input_var}, {var_name});\n'
+                code += f'    pg_rt.Binary({var_name}.data(), {var_name}.size(), {threshold});\n'
             elif stmt[0] == 'copy':
                 src = stmt[1]
                 dest = stmt[2]
+                src_type = var_types.get(src, 'Ctx')
+                var_types[dest] = src_type
                 code += f'    {dest} = {src};\n'
             elif stmt[0] == 'return':
                 ret_var = stmt[1]
@@ -92,6 +140,7 @@ class OpenPEGASUSGenerator():
         code += '#include <iostream>\n#include <fstream>\n'
         code += '#include <vector>\n'
         code += '#include <random>\n'
+        code += '#include <type_traits>\n'
         code += 'using namespace gemini;\n'
         code += 'using namespace std;\n\n'
 
@@ -141,34 +190,41 @@ Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
         code += '    pp.enable_repacking = false;\n\n'
         code += '    PegasusRunTime pg_rt(pp, 4);\n\n'
         code += '    F64Vec slots = {' + ', '.join(map(str, slots)) + '};\n'
-        # code += '    F64Vec slots;\n'
-        # code += f'    slots.resize(pp.nslots, 1.0);\n\n'
-
         for param in self.param_names:
-            code += f'    Ctx {param};\n'
-            code += f'    CHECK_AND_ABORT(pg_rt.EncodeThenEncrypt(slots, {param}));\n'
+            param_type = self.var_types.get(param, 'Ctx')
+            if param_type == 'Ctx':
+                code += f'    Ctx {param};\n'
+                code += f'    CHECK_AND_ABORT(pg_rt.EncodeThenEncrypt(slots, {param}));\n'
+            elif param_type == 'std::vector<lwe::Ctx_st>':
+                code += f'    std::vector<lwe::Ctx_st> {param};\n'
 
-        code += '\n    // Call the transformed function\n'
-        code += f'    Ctx result = {self.function_name}(' + ', '.join([param for param in self.param_names]) + ', pg_rt);\n\n'
+        if self.contains_comparelut:
+            result_type = 'std::vector<lwe::Ctx_st>'
+            code += f'    {result_type} result = {self.function_name}(' + ', '.join([param for param in self.param_names]) + ', pg_rt);\n\n'
+            code += '    F64Vec output;\n'
+            code += '    for (auto &lwe_ct : result) {\n'
+            code += '        double value = pg_rt.DecryptLWE(lwe_ct);\n'
+            code += '        output.push_back(value);\n'
+            code += '    }\n\n'
+        else:
+            result_type = 'Ctx'
+            code += f'    {result_type} result = {self.function_name}(' + ', '.join([param for param in self.param_names]) + ', pg_rt);\n\n'
+            code += '    F64Vec output;\n'
+            code += '    CHECK_AND_ABORT(pg_rt.DecryptThenDecode(result, pp.nslots, output));\n\n'
 
-        code += '    // Decrypt and decode result\n'
-        code += '    F64Vec output(pp.nslots);\n'
-        code += '    CHECK_AND_ABORT(pg_rt.DecryptThenDecode(result, pp.nslots, output));\n\n'
-
-        code += '    // Output result to a file\n'
         code += f'    std::ofstream outfile("{output_txt_path}");\n'
         code += '    if (outfile.is_open()) {\n'
-        code += f'        for (size_t i = 0; i < {height}; ++i) {chr(123)}\n'
-        code += f'            for (size_t j = 0; j < {width}; ++j) {chr(123)}\n'
-        code += f'                size_t index = i * {width} + j;\n'
-        code += '                outfile << output[index] << " ";\n'
+        code += '        size_t index = 0;\n'
+        code += f'        for (size_t i = 0; i < {height}; ++i) {{\n'
+        code += f'            for (size_t j = 0; j < {width}; ++j) {{\n'
+        code += '                outfile << output[index++] << " ";\n'
         code += '            }\n'
         code += '            outfile << std::endl;\n'
         code += '        }\n'
         code += '        outfile.close();\n'
-        code += '        std::cout << "Data successfully saved to output_image.txt" << std::endl;\n'
+        code += '        std::cout << "Data saved in output_image.txt" << std::endl;\n'
         code += '    } else {\n'
-        code += '        std::cerr << "Unable to open file for writing." << std::endl;\n'
+        code += '        std::cerr << "Can\'t write" << std::endl;\n'
         code += '    }\n'
         code += '    return 0;\n'
         code += '}'

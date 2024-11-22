@@ -236,9 +236,6 @@ public:
         if (!dstType)
             return failure();
 
-        // auto input = op.getOperand();
-
-        // auto value = op.getValue();
         auto input = op.message();
         double msg = input.convertToDouble();
         FloatAttr mat_input = FloatAttr::get(Float64Type::get(rewriter.getContext()), msg);
@@ -246,23 +243,10 @@ public:
         auto constDstType = typeConverter->convertType(Float64Type::get(rewriter.getContext()));
         auto constOp = rewriter.create<emitc::ConstantOp>(op.getLoc(), constDstType, mat_input);
 
-        // rewriter.replaceOpWithNewOp<emitc::ConstantOp>(
-        //     op, TypeRange(dstType), value);
 
         llvm::SmallVector<Value> materialized_operands;
         materialized_operands.push_back(constOp.getResult());
-        // auto operandDstType = typeConverter->convertType(input.getType());
-        // if (!operandDstType)
-        //     return failure();
-        // if (input.getType() != operandDstType)
-        // {
-        //     auto new_operand = typeConverter->materializeTargetConversion(rewriter, op.getLoc(), operandDstType, input);
-        //     materialized_operands.push_back(new_operand);
-        // }
-        // else
-        // {
-        //     materialized_operands.push_back(input);
-        // }
+
         auto oldType = op.getType();
         
         emitc::OpaqueAttr const_value;
@@ -277,8 +261,6 @@ public:
 
         rewriter.create<emitc::CallOp>(plainConstOp.getLoc(), TypeRange(), 
                 llvm::StringRef(op_str), ArrayAttr(), ArrayAttr(), materialized_operands);
-        // rewriter.replaceOpWithNewOp<emitc::CallOp>(op, TypeRange(dstType), 
-        //     llvm::StringRef(op_str), ArrayAttr(), ArrayAttr(), materialized_operands);
 
         return success();
     }
@@ -405,7 +387,6 @@ public:
             if (auto specificOp = input_vector.getDefiningOp<FHEMaterializeOp>()) {
                 if (auto specificOp2 = specificOp.getOperand().getDefiningOp<FHEMaterializeOp>()){
                     new_operand = specificOp2.getOperand();
-                    // llvm::errs()<<"\n"<<new_operand<<"\n";
                 }
             }
             
@@ -440,10 +421,8 @@ public:
                                   0), // means "first operand"
                               rewriter.getSI32IntegerAttr(colAttr.getInt())
                           });
-            // llvm::errs()<<"\n"<<op<<"\n";
             rewriter.replaceOpWithNewOp<emitc::CallOp>(op, dstType, llvm::StringRef("load"),
                                             aa, ArrayAttr(), new_operand);
-            // llvm::errs()<<"\n"<<op<<"\n";
         }
         
         return success();
@@ -470,7 +449,6 @@ public:
         Value new_matrix;
         if (matrix.getType() != operandDstType)
             new_matrix = typeConverter->materializeTargetConversion(rewriter, op.getLoc(), operandDstType, matrix);
-            // input_vector = new_operand;
         else 
             new_matrix = matrix;
         auto indexAttr = op.indexAttr().cast<IntegerAttr>();
@@ -479,7 +457,7 @@ public:
             getContext(), {
                               IntegerAttr::get(
                                   IndexType::get(getContext()),
-                                  0), // means "first operand" (matrix)
+                                  0),
                               rewriter.getSI32IntegerAttr(indexAttr.getInt())
                           });
         
@@ -489,6 +467,52 @@ public:
         return success();
     }
 };
+
+class EmitCCompareLutPattern final : public OpConversionPattern<HEIRLutOp>
+{
+public:
+    using OpConversionPattern<HEIRLutOp>::OpConversionPattern;
+
+    LogicalResult matchAndRewrite(
+        HEIRLutOp op, typename HEIRLutOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
+    {
+        auto dstType = typeConverter->convertType(op.getType());
+        if (!dstType)
+            return failure();
+        Value input = op.input();
+        auto inputDstType = typeConverter->convertType(input.getType());
+        if (!inputDstType)
+            return failure();
+
+        Value new_input;
+        if (input.getType() != inputDstType)
+            new_input = typeConverter->materializeTargetConversion(rewriter, op.getLoc(), inputDstType, input);
+        else
+            new_input = input;
+        auto edge2Attr = op.edge2Attr();
+        auto edge1Attr = op.edge1Attr();
+        auto thresholdAttr = op.thresholdAttr();
+        auto args = ArrayAttr::get(
+            getContext(),
+            {
+                IntegerAttr::get(IndexType::get(getContext()), 0),
+                edge2Attr,
+                edge1Attr,
+                thresholdAttr
+            });
+
+        // 替换为 emitc::CallOp
+        rewriter.replaceOpWithNewOp<emitc::CallOp>(
+            op,
+            TypeRange{dstType},
+            llvm::StringRef("comparelut"),
+            ArrayAttr(), 
+            args,
+            ArrayRef<Value>{new_input});
+        return success();
+    }
+};
+
 
 class EmitCCopyPattern final : public OpConversionPattern<HEIRCopyOp>
 {
@@ -524,11 +548,7 @@ public:
         FHEInsertfinalOp op, typename FHEInsertfinalOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
     {        
         rewriter.setInsertionPoint(op);
-        // auto dstType = typeConverter->convertType(op.getType());
-        // ciphermat[3, 4] = emitc.insert(lweCipherToStore) {row , col} : (!heir.lwecipher<f32>) -> !heir.lwecipher<f32>
-        // But we cannot implement the above pattern?
         Type dstVecType = typeConverter->convertType(op.memref().getType());
-        // Type vectorType = vector.getType();
         Type dstValType = typeConverter->convertType(op.value().getType());
         std::string vectorTypeString;
         llvm::StringRef addrTypeValue;
@@ -547,7 +567,6 @@ public:
             auto colAttr = op.colAttr().cast<IntegerAttr>();
             auto new_vector = typeConverter->materializeTargetConversion(rewriter, op.memref().getLoc(),
                                                                             dstVecType, op.memref());
-            // auto applyOp = rewriter.create<emitc::ApplyOp>(op.getLoc(), addrType, llvm::StringRef("&"), new_vector);
 
             auto new_valueToStore = typeConverter->materializeTargetConversion(rewriter, op.value().getLoc(),
                                                                                 dstValType, op.value());
@@ -575,15 +594,6 @@ public:
             // llvm::SmallVector<Value> materialized_operands1;
             auto aaa = op.memref().getDefiningOp<FHEMaterializeOp>().getOperand();
             auto aaa1 = aaa.getDefiningOp<FHEMaterializeOp>().getOperand();
-            // auto bbb = op.value().getDefiningOp<FHEMaterializeOp>().getOperand();
-            // Type bbbType = typeConverter->convertType(bbb.getType());
-            // auto bbb1 = typeConverter->materializeTargetConversion(rewriter, bbb.getLoc(), bbbType, bbb);
-            // // llvm::errs()<<"\n"<<op.value().getDefiningOp<FHEMaterializeOp>().getOperand()<<"\n"<<aaa1<<"\n";
-            // materialized_operands1.push_back(aaa1);
-            // materialized_operands1.push_back(bbb1);
-            // auto new_vector = typeConverter->materializeTargetConversion(rewriter, op.memref().getLoc(),
-            //                                                                 dstVecType, op.memref());
-
             auto new_valueToStore = typeConverter->materializeTargetConversion(rewriter, op.value().getLoc(),
                                                                                 dstValType, op.value());
             llvm::SmallVector<Value> materialized_operands;
@@ -601,12 +611,8 @@ public:
                             //       1), // means "second operand"
                               rewriter.getSI32IntegerAttr(colAttr.getInt())
                           });
-            // llvm::errs() << "time4\n" << aa <<"\n" << new_valueToStore<<"\n"<<new_vector<<"\n"<<dstValType<<"\n"<<op.value().getLoc()
-            //              << "\n" << op.value() << "\n" << op.value().getLoc();
-            // llvm::errs() <<"\n"<<op.value().getDefiningOp<FHEMaterializeOp>().getOperand()<<"\n"<<op.value().getDefiningOp<FHEMaterializeOp>().getOperand().getDefiningOp<FHEMaterializeOp>().getOperand()<<"\n";
             rewriter.replaceOpWithNewOp<emitc::CallOp>(op, TypeRange(), llvm::StringRef("insert"),
                                             aa, ArrayAttr(), materialized_operands);
-            // llvm::errs() << "time5";
         }
 
         return success();
@@ -682,7 +688,6 @@ public:
             if (o.getType() != operandDstType)
             {
                 auto new_operand = typeConverter->materializeTargetConversion(rewriter, op.getLoc(), operandDstType, o);
-                // assert(new_operand && "Type Conversion must not fail");
                 materialized_operands.push_back(new_operand);
             }
             else
@@ -816,7 +821,6 @@ public:
 void LowerHEIRToEmitCPass::runOnOperation()
 {
     auto type_converter = TypeConverter();
-    // llvm::errs() << "111";
     // Type conversion, convert HEIR types into emitc C++ types
     type_converter.addConversion([&](Type t) {
         if (t.isa<LWECipherType>())
@@ -831,19 +835,11 @@ void LowerHEIRToEmitCPass::runOnOperation()
             return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "int"));
         else if (t.isa<PlainType>())
             return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "InterPlain"));
-        // else if (t.isa<Float32Type>())
-        //     return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "float"));
         else
             return llvm::Optional<Type>(t);
     });
 
     type_converter.addTargetMaterialization([&](OpBuilder &builder, Type t, ValueRange vs, Location loc) {
-        
-        // if (auto ot = t.dyn_cast<emitc::OpaqueType>()) {
-        //     if (vs.front().getType().isa<emitc::OpaqueType>()) {
-        //         return llvm::Optional<Value>(vs.front());
-        //     }
-        // }
         if (auto ot = t.dyn_cast_or_null<emitc::OpaqueType>())
         {
             assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materalize single values");
@@ -881,11 +877,6 @@ void LowerHEIRToEmitCPass::runOnOperation()
                 if (ot.getValue().str() == "InterPlain")
                     return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
-            // else if (old_type.dyn_cast_or_null<Float32Type>())
-            // {
-            //     if (ot.getValue().str() == "float")
-            //         return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
-            // }
         }
         return llvm::Optional<Value>(llvm::None);
     });
@@ -927,11 +918,6 @@ void LowerHEIRToEmitCPass::runOnOperation()
                 if (ot.getValue().str() == "InterPlain")
                     return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
-            // else if (old_type.dyn_cast_or_null<Float32Type>())
-            // {
-            //     if (ot.getValue().str() == "float")
-            //         return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
-            // }
         }
         return llvm::Optional<Value>(llvm::None);
     });
@@ -988,14 +974,6 @@ void LowerHEIRToEmitCPass::runOnOperation()
                 if (ot.getValue().str() == "InterPlain")
                     return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
-        // else if (auto bst = t.dyn_cast_or_null<Float32Type>())
-        // {
-        //     assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materialize single values");
-        //     auto old_type = vs.front().getType();
-        //     if (auto ot = old_type.dyn_cast_or_null<emitc::OpaqueType>())
-        //         if (ot.getValue().str() == "float")
-        //             return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
-        // }
         return llvm::Optional<Value>(llvm::None);
     });
     ConversionTarget target(getContext());
@@ -1039,7 +1017,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
         EmitCEncodePattern, EmitCLUTPattern<FHELUTForAddOp>, EmitCLUTPattern<FHELUTForSubOp>, EmitCLUTPattern<FHELUTForGTOp>,
         EmitCLUTPattern<FHELUTForLTOp>, EmitCLUTPattern<FHELUTOp>, EmitCBasicPattern<RLWEMulOp>, 
         EmitCReturnPattern, EmitCExtractPattern, EmitCVectorLoadPattern>(type_converter, patterns.getContext());
-    patterns.add<EmitCInsertPattern, EmitCCopyPattern>(type_converter, patterns.getContext());
+    patterns.add<EmitCInsertPattern, EmitCCompareLutPattern, EmitCCopyPattern>(type_converter, patterns.getContext());
 
     if (mlir::failed(mlir::applyPartialConversion(getOperation(), target, std::move(patterns))))
         signalPassFailure();
