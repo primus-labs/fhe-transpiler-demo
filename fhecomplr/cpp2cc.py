@@ -111,6 +111,8 @@ class OpenPEGASUSGenerator():
                 input_var = stmt[2]
                 template_args = stmt[3]
                 threshold = template_args[-1]
+                match = re.search(r'[-+]?\d*\.?\d+([eE][-+]?\d+)?', threshold)
+                threshold = float(match.group())/255
                 code += f'    std::vector<lwe::Ctx_st> {var_name};\n'
                 code += f'    pg_rt.ExtraAllCoefficients({input_var}, {var_name});\n'
                 code += f'    pg_rt.Binary({var_name}.data(), {var_name}.size(), {threshold});\n'
@@ -132,7 +134,10 @@ class OpenPEGASUSGenerator():
         height = image.height
         width = image.width
         nslots = height * width
-        slots = image.data
+        if self.contains_comparelut:
+            slots = [i/255 for i in image.data]
+        else: 
+            slots = image.data
 
         code = ''
         code += '#include "pegasus/pegasus_runtime.h"\n'
@@ -195,6 +200,8 @@ Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
             if param_type == 'Ctx':
                 code += f'    Ctx {param};\n'
                 code += f'    CHECK_AND_ABORT(pg_rt.EncodeThenEncrypt(slots, {param}));\n'
+                if self.contains_comparelut:
+                    code += f'    CHECK_AND_ABORT(pg_rt.SlotsToCoeffs({param}));\n'
             elif param_type == 'std::vector<lwe::Ctx_st>':
                 code += f'    std::vector<lwe::Ctx_st> {param};\n'
 
@@ -217,7 +224,10 @@ Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
         code += '        size_t index = 0;\n'
         code += f'        for (size_t i = 0; i < {height}; ++i) {{\n'
         code += f'            for (size_t j = 0; j < {width}; ++j) {{\n'
-        code += '                outfile << output[index++] << " ";\n'
+        if self.contains_comparelut:
+            code += '                outfile << output[index++]*255 << " ";\n'
+        else:
+            code += '                outfile << output[index++] << " ";\n'
         code += '            }\n'
         code += '            outfile << std::endl;\n'
         code += '        }\n'
