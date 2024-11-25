@@ -3,7 +3,7 @@ import numpy as np
 import os
 
 class Imageplain:
-    def __init__(self, data: list[float], width, height):
+    def __init__(self, data: list[float], width: int, height: int):
         self.data = data
         self.width = width
         self.height = height
@@ -15,7 +15,7 @@ class Imageplain:
         plt.axis('off')
         plt.show()
     
-    def save(self, output_path, file_name = 'output_image'):
+    def save(self, output_path: str, file_name: str = 'output_image'):
         image_array = np.array(self.data)
         image = image_array.reshape((self.height, self.width))
         file_extension = 'png'

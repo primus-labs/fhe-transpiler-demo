@@ -1,4 +1,5 @@
 import re
+from fhecomplr import Imageplain
 
 class OpenPEGASUSGenerator():
     def __init__(self, function_file_path):
@@ -68,7 +69,7 @@ class OpenPEGASUSGenerator():
                 pass 
         return var_types
 
-    def generate_pegasus_code(self, function_name, param_names, statements):
+    def generate_pegasus_code(self, function_name: str, param_names: list, statements: list[list]):
         var_types = self.var_types
         ret_var = statements[-1][1] if statements and statements[-1][0] == 'return' else None
         if ret_var and var_types.get(ret_var) == 'std::vector<lwe::Ctx_st>':
@@ -129,7 +130,7 @@ class OpenPEGASUSGenerator():
         return code
 
 
-    def cpptocc(self, output_file_path, output_txt_path, image):
+    def cpptocc(self, output_file_path: str, output_txt_path: str, image: Imageplain):
 
         height = image.height
         width = image.width

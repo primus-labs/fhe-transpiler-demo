@@ -9,6 +9,7 @@ import inspect
 import ast
 import numpy as np
 import configparser
+from typing import Callable, Any
 
 class Compiler:
     def __init__(self):
@@ -31,14 +32,14 @@ class Compiler:
         back_command = ['cd', self.fhe_transpiler_path]
         subprocess.run(back_command)
 
-    def read(self, filepath):
+    def read(self, filepath: str):
         from PIL import Image as PILImage
         pil_img = PILImage.open(filepath).convert('L')
         width, height = pil_img.size
         data = list(map(float, list(pil_img.getdata())))
         return Imageplain(data, width, height)
     
-    def pythontomlir(self, functionstr, mlir_output_path):
+    def pythontomlir(self, functionstr: str, mlir_output_path: str):
         parsed_ast = ast.parse(functionstr)
         os.makedirs(os.path.dirname(mlir_output_path), exist_ok=True)
         with ir.Context() as ctx:
@@ -49,7 +50,7 @@ class Compiler:
                 with open(mlir_output_path, 'w') as mlir_file:
                     mlir_file.write(str(module))
 
-    def mlirtoemitc(self, mlir_path, emitc_output_path):
+    def mlirtoemitc(self, mlir_path: str, emitc_output_path: str):
         heir_opt_command = [
             self.heir_opt_path,
             mlir_path,
@@ -59,7 +60,7 @@ class Compiler:
         with open(emitc_output_path, 'w') as emitc_mlir_file:
             subprocess.run(heir_opt_command, stdout=emitc_mlir_file, check=True)
 
-    def emitctocpp(self, emitc_path, cpp_output_path):
+    def emitctocpp(self, emitc_path: str, cpp_output_path: str):
         emitc_translate_command = [
             self.emitc_translate_path, 
             emitc_path,
@@ -68,7 +69,7 @@ class Compiler:
         with open(cpp_output_path, 'w') as emitc_cpp_file:
             subprocess.run(emitc_translate_command, stdout=emitc_cpp_file, check=True)
 
-    def movecctopegasus(self, cc_path):
+    def movecctopegasus(self, cc_path: str):
         if not os.path.isfile(cc_path):
             raise FileNotFoundError(f"File not found: {cc_path}")
         if not os.path.isdir(self.openpegasus_path):
@@ -90,7 +91,7 @@ target_link_libraries({base_name}_exe pegasus)
             cmake_file.write(cmake_content.strip() + "\n")
         return os.path.join(self.openpegasus_path, f'build-release/bin/{base_name}_exe')
     
-    def is_directory_empty(self, directory):
+    def is_directory_empty(self, directory: str):
         if not os.path.isdir(directory):
             raise ValueError(f"The path {directory} is not a valid directory")
         with os.scandir(directory) as entries:
@@ -98,7 +99,7 @@ target_link_libraries({base_name}_exe pegasus)
                 return False
         return True 
 
-    def compile_pegasus(self, exe_path):
+    def compile_pegasus(self):
         build_dir = os.path.join(self.openpegasus_path, "build-release/")
         if os.path.exists(build_dir):
             if self.is_directory_empty(build_dir):
@@ -140,7 +141,7 @@ target_link_libraries({base_name}_exe pegasus)
             subprocess.run(delete_command)
             return output_image
 
-    def compile_plain(self, function, image):
+    def compile_plain(self, function: Callable, image: Imageplain):
         function_name = function.__name__
         source_code = inspect.getsource(function)
         benchmark_path = os.path.join(self.fhe_transpiler_path, f'benchmarks/{function_name}')
@@ -170,7 +171,7 @@ target_link_libraries({base_name}_exe pegasus)
         print("Compile OpenPEGASUS: Done.")
 
 
-    def compile(self, function, parameters):
+    def compile(self, function: Callable, parameters: Any):
         if isinstance(parameters, Imageplain):
             output = self.compile_plain(function, parameters)
             return output
