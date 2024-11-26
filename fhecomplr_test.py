@@ -33,7 +33,8 @@ def binary64x64(arg0:list[float, 4096], arg1:list[float, 4096]):
 compiler = fhecomplr.Compiler()
 img = compiler.read("/home/fhetran/fhe-transpiler-demo/benchmarks/binary/test.png")
 img.show()
-output_image = compiler.compile(binary64x64, img)
+compiler.compile(binary64x64, img)
+output_image = compiler.run()
 output_image.show()
 output_image.save("/home/fhetran/fhe-transpiler-demo-main/benchmarks/binary64x64.png")
 
