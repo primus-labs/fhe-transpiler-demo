@@ -56,9 +56,9 @@ cd ../../
 ### Back-End
 Starting from the ``fhetran`` directory.
 
-Clone and make build directory for [OpenPEGASUS](https://github.com/Alibaba-Gemini-Lab/OpenPEGASUS).
+Clone and make build directory for modified [OpenPEGASUS](https://github.com/ruiyushen/OpenPEGASUS) library.
 ```bash
-git clone https://github.com/Alibaba-Gemini-Lab/OpenPEGASUS
+git clone https://github.com/ruiyushen/OpenPEGASUS.git
 mkdir build-release
 cd ../fhe-transpiler-demo
 ```
