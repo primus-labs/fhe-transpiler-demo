@@ -13,6 +13,7 @@ Starting from the ``fhetran`` and clone this repo.
 git clone https://github.com/primus-labs/fhe-transpiler-demo
 cd fhe-transpiler-demo
 ```
+
 Then build the first LLVM for the front-end.
 ```bash
 git clone https://github.com/llvm/llvm-project.git
@@ -63,14 +64,14 @@ cd ../fhe-transpiler-demo
 ```
 
 ## Using Demo
-First, we go to the fhe-transpiler-demo folder and configure PYTHONPATH.
+First, Set the absolute addresses of each library in ``fhecomplr/config.ini``.
 
+Next, we go to the fhe-transpiler-demo folder and configure PYTHONPATH.
 ```bash
 export PYTHONPATH=llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
 ```
 
-Next, run  ```fhecomplr_test.py``` to get the test results.
-
+Run  ```fhecomplr_test.py``` to get the test results.
 ```bash
 python fhecomplr_test.py
 ```
