@@ -9,13 +9,13 @@ git clone https://github.com/primus-labs/fhe-transpiler-demo.git
 ### Front-End
 Starting from the ``fhe-transpiler-demo`` directory and clone this repo.
 ```bash
-cd fhe-transpiler-demo/thirdparty
+cd fhe-transpiler-demo
+git submodule update --init --recursive
 ```
 
 Then build ``LLVM19`` for the front-end.
 ```bash
-git clone -b release/19.x https://github.com/llvm/llvm-project.git
-cd llvm-project
+cd thirdparty/llvm-project
 mkdir build
 cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="mlir" -DLLVM_BUILD_EXAMPLES=ON \
 -DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON  \
@@ -43,8 +43,7 @@ Starting from the ``fhe-transpiler-demo`` directory.
 
 Clone and make build directory for modified [OpenPEGASUS](https://github.com/ruiyushen/OpenPEGASUS) library.
 ```bash
-cd thirdparty
-git clone https://github.com/ruiyushen/OpenPEGASUS.git
+cd thirdparty/OpenPEGASUS
 mkdir build
 cd ../../../
 ```
