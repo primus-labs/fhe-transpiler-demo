@@ -36,30 +36,30 @@ using namespace heir;
 void NaryPass::getDependentDialects(mlir::DialectRegistry &registry) const
 {
     registry.insert<
-        heir::HEIRDialect, mlir::AffineDialect, func::FuncDialect, mlir::scf::SCFDialect, mlir::tensor::TensorDialect>();
+        heir::HEIRDialect, mlir::affine::AffineDialect, func::FuncDialect, mlir::scf::SCFDialect, mlir::tensor::TensorDialect>();
 }
 
 // LWEAdd aggregation
 void collapseAdd(heir::LWEAddOp &op, IRRewriter &rewriter)
 {
-    for (auto &use : llvm::make_early_inc_range(op.output().getUses()))
+    for (auto &use : llvm::make_early_inc_range(op.getOutput().getUses()))
     {
         if (auto use_add = llvm::dyn_cast<heir::LWEAddOp>(*use.getOwner()))
         {
             rewriter.setInsertionPointAfter(use_add.getOperation());
             llvm::SmallVector<Value, 4> new_operands;
-            for (auto s : use_add.x())
+            for (auto s : use_add.getX())
             {
-                if (s != op.output())
+                if (s != op.getOutput())
                 {
                     new_operands.push_back(s);
                 }
             }
-            for (auto s : op.x())
+            for (auto s : op.getX())
             {
                 new_operands.push_back(s);
             }
-            auto new_add = rewriter.create<heir::LWEAddOp>(use_add->getLoc(), use_add.output().getType(), new_operands);
+            auto new_add = rewriter.create<heir::LWEAddOp>(use_add->getLoc(), use_add.getOutput().getType(), new_operands);
             use_add.replaceAllUsesWith(new_add.getOperation());
         }
     }
@@ -68,24 +68,24 @@ void collapseAdd(heir::LWEAddOp &op, IRRewriter &rewriter)
 // LWESub aggregation
 void collapseSub(heir::LWESubOp &op, IRRewriter &rewriter)
 {
-    for (auto &use : llvm::make_early_inc_range(op.output().getUses()))
+    for (auto &use : llvm::make_early_inc_range(op.getOutput().getUses()))
     {
         if (auto use_sub = llvm::dyn_cast<heir::LWESubOp>(*use.getOwner()))
         {
             rewriter.setInsertionPointAfter(use_sub.getOperation());
             llvm::SmallVector<Value, 4> new_operands;
-            for (auto s : use_sub.x())
+            for (auto s : use_sub.getX())
             {
-                if (s != op.output())
+                if (s != op.getOutput())
                 {
                     new_operands.push_back(s);
                 }
             }
-            for (auto s : op.x())
+            for (auto s : op.getX())
             {
                 new_operands.push_back(s);
             }
-            auto new_sub = rewriter.create<heir::LWESubOp>(use_sub->getLoc(), use_sub.output().getType(), new_operands);
+            auto new_sub = rewriter.create<heir::LWESubOp>(use_sub->getLoc(), use_sub.getOutput().getType(), new_operands);
             use_sub.replaceAllUsesWith(new_sub.getOperation());
         }
     }
@@ -94,25 +94,25 @@ void collapseSub(heir::LWESubOp &op, IRRewriter &rewriter)
 // LWEMul aggregation
 void collapseMul(heir::LWEMulOp &op, IRRewriter &rewriter)
 {
-    for (auto &use : llvm::make_early_inc_range(op.output().getUses()))
+    for (auto &use : llvm::make_early_inc_range(op.getOutput().getUses()))
     {
         if (auto use_mul = llvm::dyn_cast<heir::LWEMulOp>(*use.getOwner()))
         {
             rewriter.setInsertionPointAfter(use_mul.getOperation());
             llvm::SmallVector<Value, 4> new_operands;
-            for (auto s : use_mul.x())
+            for (auto s : use_mul.getX())
             {
-                if (s != op.output())
+                if (s != op.getOutput())
                 {
                     new_operands.push_back(s);
                 }
             }
-            for (auto s : op.x())
+            for (auto s : op.getX())
             {
                 new_operands.push_back(s);
             }
             auto new_mul =
-                rewriter.create<heir::LWEMulOp>(use_mul->getLoc(), use_mul.output().getType(), new_operands);
+                rewriter.create<heir::LWEMulOp>(use_mul->getLoc(), use_mul.getOutput().getType(), new_operands);
             use_mul.replaceAllUsesWith(new_mul.getOperation());
         }
     }
@@ -121,13 +121,26 @@ void collapseMul(heir::LWEMulOp &op, IRRewriter &rewriter)
 // add/sub/mult operation aggragation to get ready for batching optimizatins 
 void NaryPass::runOnOperation()
 {
+    IRRewriter rewriter(&getContext());
+    auto module = getOperation();
+    module.walk([&](func::FuncOp funcOp)
+    {
+        llvm::SmallVector<Operation *, 16> ops;
+        funcOp.walk([&](Operation *op) {
+            ops.push_back(op);
+        });
+        for (auto *op : llvm::reverse(ops)) {
+            if (op->getUsers().empty() && (isa<FHEMaterializeOp>(op) || isa<arith::ConstantOp>(op))) { 
+                rewriter.eraseOp(op);
+            }
+        }
+    });
     ConversionTarget target(getContext());
-    target.addLegalDialect<AffineDialect, func::FuncDialect, tensor::TensorDialect, scf::SCFDialect>();
-    target.addIllegalOp<AffineForOp>();
+    target.addLegalDialect<affine::AffineDialect, func::FuncDialect, tensor::TensorDialect, scf::SCFDialect>();
+    target.addIllegalOp<affine::AffineForOp>();
 
     // Get the (default) block in the module's only region:
     auto &block = getOperation()->getRegion(0).getBlocks().front();
-    IRRewriter rewriter(&getContext());
 
 
     for (auto f : llvm::make_early_inc_range(block.getOps<func::FuncOp>()))

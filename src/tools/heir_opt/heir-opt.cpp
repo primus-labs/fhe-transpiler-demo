@@ -22,7 +22,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
@@ -34,6 +34,8 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
 using namespace mlir;
+using namespace arith;
+using namespace affine;
 using namespace heir;
 
 // pipeline for optimizing arithmetic circuits
@@ -70,17 +72,17 @@ int main(int argc, char **argv)
     mlir::DialectRegistry registry;
     registry.insert<HEIRDialect>();
     registry.insert<func::FuncDialect>();
-    registry.insert<AffineDialect>();
+    registry.insert<affine::AffineDialect>();
     registry.insert<tensor::TensorDialect>();
-    registry.insert<arith::ArithmeticDialect>();
+    registry.insert<arith::ArithDialect>();
     registry.insert<scf::SCFDialect>();
     registry.insert<memref::MemRefDialect>();
     registry.insert<emitc::EmitCDialect>();
     context.loadDialect<HEIRDialect>();
     context.loadDialect<func::FuncDialect>();
-    context.loadDialect<AffineDialect>();
+    context.loadDialect<affine::AffineDialect>();
     context.loadDialect<tensor::TensorDialect>();
-    context.loadDialect<arith::ArithmeticDialect>();
+    context.loadDialect<arith::ArithDialect>();
     context.loadDialect<scf::SCFDialect>();
     context.loadDialect<memref::MemRefDialect>();
     context.loadDialect<emitc::EmitCDialect>();

@@ -83,7 +83,7 @@ include_directories(${HEIR_INCLUDE_DIR})
 # Global flags aren't good CMAKE style, but these should work across pretty much all compilers
 set(CXXFLAGS "--coverage --pedantic-errors -Wall -WError")
 
-set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
+set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
 
 ###################
 # Directory Setup #

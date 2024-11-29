@@ -36,7 +36,7 @@ using namespace heir;
 void BatchingPass::getDependentDialects(mlir::DialectRegistry &registry) const
 {
   registry.insert<heir::HEIRDialect,
-                  mlir::AffineDialect,
+                  mlir::affine::AffineDialect,
                   func::FuncDialect,
                   mlir::scf::SCFDialect>();
 }
@@ -62,13 +62,13 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
             if (FHEExtractfinalOp ex_op = dyn_cast_or_null<FHEExtractfinalOp>(u))
             {
                 // We later want this value to be in slot i??
-                target_slot = ex_op.col().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
+                target_slot = ex_op.getCol().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
                 break;
             }
             else if (FHEInsertfinalOp ins_op = dyn_cast_or_null<FHEInsertfinalOp>(u))
             {
                 // op.dump();
-                target_slot = ins_op.col().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
+                target_slot = ins_op.getCol().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
                 // llvm::errs()<<"\n"<<target_slot<<"\n";
                 break;
             }
@@ -92,7 +92,7 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
                     if (FHEExtractfinalOp ex_op = (*it).template getDefiningOp<FHEExtractfinalOp>())
                     {
                         // auto i = (int)ex_op.i().getLimitedValue();
-                        auto i = (int)ex_op.col().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
+                        auto i = (int)ex_op.getCol().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
                         if (target_slot == -1)
                             target_slot = i;
                     }
@@ -119,7 +119,7 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
                 // scalar-type input that will be converted
                 if (FHEExtractfinalOp ex_op = o.template getDefiningOp<FHEExtractfinalOp>())
                 {
-                    auto bst = ex_op.vector().getType().dyn_cast_or_null<LWECipherVectorType>();
+                    auto bst = ex_op.getVector().getType().dyn_cast_or_null<LWECipherVectorType>();
                     assert(bst && "Extractfinal must be applied to LWECipherVector");
                     max_size = std::max(max_size, bst.getSize());
                 }
@@ -139,7 +139,7 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
                     auto resized_type = 
                           LWECipherVectorType::get(rewriter.getContext(), bst.getPlaintextType(), max_size);
                     auto resized_o = rewriter.create<FHEMaterializeOp>(op.getLoc(), resized_type, *it);
-                    rewriter.replaceOpWithIf((*it).getDefiningOp(), { resized_o }, [&](OpOperand &operand) {
+                    rewriter.replaceUsesWithIf((*it).getDefiningOp()->getResults(), { resized_o }, [&](OpOperand &operand) {
                         return operand.getOwner() == new_op;
                     });
                 }
@@ -150,7 +150,7 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
                 if (FHEExtractfinalOp ex_op = (*it).template getDefiningOp<FHEExtractfinalOp>())
                 {
                     // Check if it needs to be resized
-                    if (auto bst = ex_op.vector().getType().template dyn_cast_or_null<LWECipherVectorType>())
+                    if (auto bst = ex_op.getVector().getType().template dyn_cast_or_null<LWECipherVectorType>())
                     {
                         if (bst.getSize() < max_size)
                         {
@@ -159,10 +159,10 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
                             auto cur_ip = rewriter.getInsertionPoint();
                             rewriter.setInsertionPoint(ex_op);
                             Value resized_o =
-                                rewriter.create<FHEMaterializeOp>(ex_op.getLoc(), resized_type, ex_op.vector());
+                                rewriter.create<FHEMaterializeOp>(ex_op.getLoc(), resized_type, ex_op.getVector());
                             auto resized_ex_op = rewriter.create<FHEExtractfinalOp>(
-                                ex_op.getLoc(), ex_op.getType(), resized_o, ex_op.col(), Attribute());
-                            rewriter.replaceOpWithIf(ex_op, { resized_ex_op }, [&](OpOperand &operand) {
+                                ex_op.getLoc(), ex_op.getType(), resized_o, ex_op.getCol(), Attribute());
+                            rewriter.replaceUsesWithIf(ex_op, { resized_ex_op }, [&](OpOperand &operand) {
                                 return operand.getOwner() == new_op;
                             });
                             ex_op = resized_ex_op;
@@ -171,12 +171,12 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
                     }
 
                     // instead of using the extract op, issue a rotation instead
-                    auto i = (int)ex_op.col().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
+                    auto i = (int)ex_op.getCol().cast<IntegerAttr>().getValue().getLimitedValue(INT32_MAX);
                     if (target_slot == -1) // no other target slot defined yet, let's make this the target
                         target_slot = i; // we'll rotate by zero, but that's later canonicalized to no-op anyway
-                    auto rotate_op = rewriter.create<FHERotateOp>(ex_op.getLoc(), ex_op.vector().getType(), ex_op.vector(), (target_slot - i + max_size) % max_size);
+                    auto rotate_op = rewriter.create<FHERotateOp>(ex_op.getLoc(), ex_op.getVector().getType(), ex_op.getVector(), (target_slot - i + max_size) % max_size);
                     // llvm::errs()<<"\n target_slot: "<<target_slot<<"\ni: "<<i<<"\n";
-                    rewriter.replaceOpWithIf(
+                    rewriter.replaceUsesWithIf(
                         ex_op, { rotate_op }, [&](OpOperand &operand) { return operand.getOwner() == new_op; });
                 }
                 // HECO uses fhe::ConstOp to cast a plaintext into a secret value
@@ -197,8 +197,8 @@ LogicalResult batchArithmeticOperation(IRRewriter &rewriter, MLIRContext *contex
                     {
                         assert(false && "This should not be possible");
                     }
-                    auto new_cst = rewriter.template create<FHEEncodeOp>(c_op.getLoc(), resized_type, c_op.message());
-                    rewriter.replaceOpWithIf(
+                    auto new_cst = rewriter.template create<FHEEncodeOp>(c_op.getLoc(), resized_type, c_op.getMessage());
+                    rewriter.replaceUsesWithIf(
                         c_op, { new_cst }, [&](OpOperand &operand) { return operand.getOwner() == new_op; });
                 }
                 else
@@ -247,7 +247,7 @@ LogicalResult RotateOpToRLWEOperation(IRRewriter &rewriter, MLIRContext *context
     Value operand = op.getOperand();
     auto operandDstType = typeConverter.convertType(operand.getType());
     Value new_operand = typeConverter.materializeTargetConversion(rewriter, op.getLoc(), operandDstType, operand);
-    auto rotIndex = op.i();
+    auto rotIndex = op.getI();
 
     
     rewriter.replaceOpWithNewOp<FHERotateOp>(op, dstType, new_operand, rotIndex);
@@ -260,18 +260,20 @@ LogicalResult RotateOpToRLWEOperation(IRRewriter &rewriter, MLIRContext *context
 // Ready to convert LWE ciphertext to RLWE ciphertext
 void BatchingPass::runOnOperation()
 {
+    IRRewriter rewriter(&getContext());
+
     auto type_converter = TypeConverter();
 
     type_converter.addConversion([&](Type t) {
-        if (t.isa<LWECipherVectorType>())
+        if (mlir::isa<LWECipherVectorType>(t))
         {
             int size = -155;
             auto new_t = t.cast<LWECipherVectorType>();
             size = new_t.getSize();
-            return llvm::Optional<Type>(RLWECipherType::get(&getContext(), new_t.getPlaintextType(), size));
+            return std::optional<Type>(RLWECipherType::get(&getContext(), new_t.getPlaintextType(), size));
         }
         else
-            return llvm::Optional<Type>(t);
+            return std::optional<Type>(t);
     });
     type_converter.addTargetMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto ot = t.dyn_cast_or_null<RLWECipherType>())
@@ -280,10 +282,10 @@ void BatchingPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<LWECipherVectorType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addArgumentMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto ot = t.dyn_cast_or_null<RLWECipherType>())
@@ -292,10 +294,10 @@ void BatchingPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<LWECipherVectorType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addSourceMaterialization([&](OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto bst = t.dyn_cast_or_null<LWECipherVectorType>())
@@ -303,14 +305,14 @@ void BatchingPass::runOnOperation()
             assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materialize single values");
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<RLWECipherType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
+
 
     // Get the (default) block in the module's only region:
     auto &block = getOperation()->getRegion(0).getBlocks().front();
-    IRRewriter rewriter(&getContext());
 
     for (auto f : llvm::make_early_inc_range(block.getOps<func::FuncOp>()))
     {

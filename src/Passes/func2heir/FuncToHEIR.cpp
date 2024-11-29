@@ -8,7 +8,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 
 using namespace mlir;
 using namespace arith;
@@ -16,8 +16,8 @@ using namespace heir;
 
 void FuncToHEIRPass::getDependentDialects(mlir::DialectRegistry &registry) const 
 {
-    registry.insert<ArithmeticDialect>();
-    registry.insert<AffineDialect>();
+    registry.insert<ArithDialect>();
+    registry.insert<affine::AffineDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<HEIRDialect>();
 }
@@ -36,11 +36,11 @@ public:
         if (!dstType)
             return failure();
         
-        auto indices_size = op.i().size();
+        auto indices_size = op.getI().size();
 
         // LWECipherVector: one-dimensional data
         if (indices_size == 1) {
-            auto cOp = op.i().front().getDefiningOp<arith::ConstantOp>();
+            auto cOp = op.getI().front().getDefiningOp<arith::ConstantOp>();
             if (!cOp)
             {
                 emitError(op.getLoc(),
@@ -49,12 +49,12 @@ public:
             }
             auto indexAttr = cOp.getValue().cast<IntegerAttr>();
 
-            rewriter.replaceOpWithNewOp<FHEExtractfinalOp>(op, dstType, op.vector(), indexAttr, Attribute());
+            rewriter.replaceOpWithNewOp<FHEExtractfinalOp>(op, dstType, op.getVector(), indexAttr, Attribute());
         }
         // LWECipherMatrix: two-dimensional data
         else if (indices_size == 2) {
-            auto row_cOp = op.i().front().getDefiningOp<arith::ConstantOp>();
-            auto col_cOp = op.i().back().getDefiningOp<arith::ConstantOp>();
+            auto row_cOp = op.getI().front().getDefiningOp<arith::ConstantOp>();
+            auto col_cOp = op.getI().back().getDefiningOp<arith::ConstantOp>();
 
             if(!row_cOp || !col_cOp) {
                 emitError(op.getLoc(),
@@ -68,7 +68,7 @@ public:
             materialized_index.push_back(row_indexAttr);
             materialized_index.push_back(col_indexAttr);
 
-            rewriter.replaceOpWithNewOp<FHEExtractfinalOp>(op, dstType, op.vector(), col_indexAttr, row_indexAttr);
+            rewriter.replaceOpWithNewOp<FHEExtractfinalOp>(op, dstType, op.getVector(), col_indexAttr, row_indexAttr);
         }
 
         return success();
@@ -85,17 +85,17 @@ public:
     LogicalResult matchAndRewrite(
         FHEInsertOp op, typename FHEInsertOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
     {   
-        auto valueType = getTypeConverter()->convertType(op.value().getType());
+        auto valueType = getTypeConverter()->convertType(op.getValue().getType());
         if (!valueType)
             return failure();
-        auto new_value = typeConverter->materializeTargetConversion(rewriter, op.value().getLoc(), 
-                                                                    valueType, op.value()); 
+        auto new_value = typeConverter->materializeTargetConversion(rewriter, op.getValue().getLoc(), 
+                                                                    valueType, op.getValue()); 
         // llvm::errs()<<"\n"<<"op.value: "<<op.value()<<"\n";
-        auto indices_size = op.index().size();
+        auto indices_size = op.getIndex().size();
         
         // LWECipherVector: one-dimensional data
         if (indices_size == 1) {
-            auto cOp = op.index().front().getDefiningOp<arith::ConstantOp>();
+            auto cOp = op.getIndex().front().getDefiningOp<arith::ConstantOp>();
             if (!cOp)
             {
                 emitError(op.getLoc(),
@@ -103,12 +103,12 @@ public:
                 return failure();
             }
             auto indexAttr = cOp.getValue().cast<IntegerAttr>();
-            rewriter.replaceOpWithNewOp<FHEInsertfinalOp>(op, new_value, op.memref(), indexAttr, Attribute());
+            rewriter.replaceOpWithNewOp<FHEInsertfinalOp>(op, new_value, op.getMemref(), indexAttr, Attribute());
         }
         // LWECipherMatrix: two-dimensional data
         else if (indices_size == 2) {
-            auto row_cOp = op.index().front().getDefiningOp<arith::ConstantOp>();
-            auto col_cOp = op.index().back().getDefiningOp<arith::ConstantOp>();
+            auto row_cOp = op.getIndex().front().getDefiningOp<arith::ConstantOp>();
+            auto col_cOp = op.getIndex().back().getDefiningOp<arith::ConstantOp>();
 
             if(!row_cOp || !col_cOp) {
                 emitError(op.getLoc(),
@@ -121,7 +121,7 @@ public:
             materialized_index.push_back(row_indexAttr);
             materialized_index.push_back(col_indexAttr);
 
-            rewriter.replaceOpWithNewOp<FHEInsertfinalOp>(op, new_value, op.memref(), col_indexAttr, row_indexAttr);
+            rewriter.replaceOpWithNewOp<FHEInsertfinalOp>(op, new_value, op.getMemref(), col_indexAttr, row_indexAttr);
         }
 
         return success();
@@ -141,11 +141,11 @@ public:
         if (!dstType) 
             return failure();
         
-        auto memrefType = typeConverter->convertType(op.memref().getType());
-        auto new_memref = typeConverter->materializeTargetConversion(rewriter, op.memref().getLoc(),
-                                                                        memrefType, op.memref());
+        auto memrefType = typeConverter->convertType(op.getMemref().getType());
+        auto new_memref = typeConverter->materializeTargetConversion(rewriter, op.getMemref().getLoc(),
+                                                                        memrefType, op.getMemref());
         
-        auto cOp = op.indices().getDefiningOp<arith::ConstantOp>();
+        auto cOp = op.getIndices().getDefiningOp<arith::ConstantOp>();
         if (!cOp)
         {
             emitError(op.getLoc(),
@@ -264,7 +264,7 @@ public:
     if (auto dt = dstType.dyn_cast_or_null<LWECipherVectorType>()){
         returnCipher = typeConverter->materializeTargetConversion(rewriter,
                                                                         op.getLoc(),
-                                                                        dstType, op.operands());
+                                                                        dstType, op.getOperands());
         // llvm::errs()<<"\n"<<op.getLoc()<<"\n"<<marktype<<"\n"<<returnCipher1<<"\n";
         // returnCipher = typeConverter->materializeTargetConversion(rewriter,
         //                                                                 returnCipher1.getDefiningOp()->getLoc(),
@@ -273,7 +273,7 @@ public:
     else{
         returnCipher = typeConverter->materializeTargetConversion(rewriter,
                                                                         op.getLoc(),
-                                                                        dstType, op.operands());
+                                                                        dstType, op.getOperands());
     }
     
     // llvm::errs()<<"\n"<<op<<"\n"<<returnCipher<<"\n";
@@ -301,7 +301,7 @@ public:
             return failure();
         auto new_functype = FunctionType::get(getContext(), signatureConversion.getConvertedTypes(), newResultTypes);
 
-        rewriter.startRootUpdate(op);
+        rewriter.startOpModification(op);
         op.setType(new_functype);
         for (auto it = op.getRegion().args_begin(); it != op.getRegion().args_end(); ++it)
         {
@@ -317,7 +317,7 @@ public:
                 arg.replaceAllUsesExcept(m_op, m_op.getDefiningOp());
             }
         }
-        rewriter.finalizeRootUpdate(op);
+        rewriter.finalizeOpModification(op);
         return success();
     }
 };
@@ -331,25 +331,25 @@ void FuncToHEIRPass::runOnOperation()
     // Add type converter to convert plaintext data type to LWECiphertext type
     type_converter.addConversion([&](Type t) {
         if (t.isa<Float32Type>())
-            return llvm::Optional<Type>(LWECipherType::get(&getContext(), t));
+            return std::optional<Type>(LWECipherType::get(&getContext(), t));
         else if (t.isa<MemRefType>())
         {
             int size = -155;
             auto new_t = t.cast<MemRefType>();
             if (new_t.hasStaticShape() && new_t.getShape().size()==1) {
                 size = new_t.getShape().front();
-                return llvm::Optional<Type>(LWECipherVectorType::get(&getContext(), new_t.getElementType(), size));
+                return std::optional<Type>(LWECipherVectorType::get(&getContext(), new_t.getElementType(), size));
             }
             else if (new_t.hasStaticShape() && new_t.getShape().size()==2) {
                 auto row = new_t.getShape().front();
                 auto col = new_t.getShape().back();
-                return llvm::Optional<Type>(LWECipherMatrixType::get(&getContext(), new_t.getElementType(), row, col));
+                return std::optional<Type>(LWECipherMatrixType::get(&getContext(), new_t.getElementType(), row, col));
             }
             else
-                return llvm::Optional<Type>(t);
+                return std::optional<Type>(t);
         }
         else
-            return llvm::Optional<Type>(t);
+            return std::optional<Type>(t);
     });
     type_converter.addTargetMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto ot = t.dyn_cast_or_null<LWECipherType>())
@@ -358,7 +358,7 @@ void FuncToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<Float32Type>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherVectorType>())
@@ -367,7 +367,7 @@ void FuncToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherMatrixType>())
@@ -376,10 +376,10 @@ void FuncToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addArgumentMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto ot = t.dyn_cast_or_null<LWECipherType>())
@@ -388,7 +388,7 @@ void FuncToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<Float32Type>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherVectorType>())
@@ -397,7 +397,7 @@ void FuncToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherMatrixType>())
@@ -406,10 +406,10 @@ void FuncToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addSourceMaterialization([&](OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto bst = t.dyn_cast_or_null<Float32Type>())
@@ -417,24 +417,24 @@ void FuncToHEIRPass::runOnOperation()
             assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materialize single values");
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<LWECipherType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
         else if (auto bst = t.dyn_cast_or_null<MemRefType>())
         {
             assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materialize single values");
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<LWECipherVectorType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
             else if (auto ot = old_type.dyn_cast_or_null<LWECipherMatrixType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
             else 
-                return llvm::Optional<Value>(llvm::None);
+                return std::optional<Value>(std::nullopt);
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     
     ConversionTarget target(getContext());
-    target.addLegalDialect<AffineDialect, func::FuncDialect, tensor::TensorDialect, scf::SCFDialect, ArithmeticDialect>();
+    target.addLegalDialect<affine::AffineDialect, func::FuncDialect, tensor::TensorDialect, scf::SCFDialect, ArithDialect>();
     target.addLegalDialect<HEIRDialect>();
     target.addLegalOp<ModuleOp>();
     target.addIllegalOp<FHEExtractOp>();

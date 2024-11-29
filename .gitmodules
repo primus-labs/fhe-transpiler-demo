@@ -1,0 +1,6 @@
+[submodule "thirdparty/llvm-project"]
+	path = thirdparty/llvm-project
+	url = https://github.com/llvm/llvm-project.git
+[submodule "thirdparty/OpenPEGASUS"]
+	path = thirdparty/OpenPEGASUS
+	url = https://github.com/ruiyushen/OpenPEGASUS.git

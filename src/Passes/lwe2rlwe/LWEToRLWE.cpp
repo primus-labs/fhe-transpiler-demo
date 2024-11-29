@@ -6,7 +6,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "llvm/ADT/APSInt.h"
-
+#include "llvm/ADT/Sequence.h"
 #include "heir/Passes/lwe2rlwe/LWEToRLWE.h"
 
 using namespace mlir;
@@ -15,7 +15,7 @@ using namespace heir;
 void LWEToRLWEPass::getDependentDialects(mlir::DialectRegistry &registry) const
 {
   registry.insert<heir::HEIRDialect,
-                  mlir::AffineDialect,
+                  mlir::affine::AffineDialect,
                   func::FuncDialect,
                   mlir::scf::SCFDialect>();
 }
@@ -121,10 +121,10 @@ void LWEToRLWEPass::runOnOperation()
             int size = -155;
             auto new_t = t.cast<LWECipherVectorType>();
             size = new_t.getSize();
-            return llvm::Optional<Type>(RLWECipherType::get(&getContext(), new_t.getPlaintextType(), size));
+            return std::optional<Type>(RLWECipherType::get(&getContext(), new_t.getPlaintextType(), size));
         }
         else
-            return llvm::Optional<Type>(t);
+            return std::optional<Type>(t);
     });
     type_converter.addTargetMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto ot = t.dyn_cast_or_null<RLWECipherType>())
@@ -133,10 +133,10 @@ void LWEToRLWEPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<LWECipherVectorType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addArgumentMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto ot = t.dyn_cast_or_null<RLWECipherType>())
@@ -145,10 +145,10 @@ void LWEToRLWEPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<LWECipherVectorType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addSourceMaterialization([&](OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto bst = t.dyn_cast_or_null<LWECipherVectorType>())
@@ -156,9 +156,9 @@ void LWEToRLWEPass::runOnOperation()
             assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materialize single values");
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<RLWECipherType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
 
     
@@ -185,15 +185,6 @@ void LWEToRLWEPass::runOnOperation()
                 .wasInterrupted())
         signalPassFailure();
 
-        // int argNum = f.getNumArguments();
-        // for (int i = 0; i < argNum; i++) {
-        //     Value arg = f.getArgument(i);
-        //     auto dstType = type_converter.convertType(arg.getType());
-        //     arg.setType(dstType);
-        //     // Value new_arg = type_converter.materializeTargetConversion(rewriter, f.getLoc(), dstType, arg);
-        //     // arg.replaceAllUsesWith(new_arg);
-        // }
-        // Convert types of the function arguments
         func::FuncOp op = f;
         TypeConverter::SignatureConversion signatureConversion(op.getFunctionType().getNumInputs());
         SmallVector<Type> newResultTypes;
@@ -203,7 +194,7 @@ void LWEToRLWEPass::runOnOperation()
             signalPassFailure();
         auto new_functype = FunctionType::get(&getContext(), signatureConversion.getConvertedTypes(), newResultTypes);
 
-        rewriter.startRootUpdate(op);
+        rewriter.startOpModification(op);
         op.setType(new_functype);
         for (auto it = op.getRegion().args_begin(); it != op.getRegion().args_end(); ++it)
         {
@@ -220,39 +211,13 @@ void LWEToRLWEPass::runOnOperation()
             }
         }
 
-        // for (auto &block : op.getBody()) {
-        //     for (auto returnOp : llvm::make_early_inc_range(block.getOps<func::ReturnOp>())) {
-        //         SmallVector<Value, 4> newOperands;
-        //         for (auto operand : returnOp.getOperands()) {
-        //             auto oldType = operand.getType();
-        //             auto newType = type_converter.convertType(oldType);
-        //             if (newType != oldType) {
-        //                 rewriter.setInsertionPoint(returnOp);
-        //                 auto convertedOperand = type_converter.materializeTargetConversion(
-        //                     rewriter, returnOp.getLoc(), newType, operand);
-        //                 if (!convertedOperand) {
-        //                     emitError(returnOp.getLoc(), "Failed to convert return operand type");
-        //                     signalPassFailure();
-        //                 }
-        //                 newOperands.push_back(convertedOperand);
-        //             } else {
-        //                 newOperands.push_back(operand);
-        //             }
-        //         }
-        //         // 替换旧的 ReturnOp
-                
-        //         rewriter.replaceOpWithNewOp<func::ReturnOp>(returnOp, newOperands);
-        //     }
-        // }
         for (auto &block : op.getBody()) {
             for (auto returnOp : llvm::make_early_inc_range(block.getOps<func::ReturnOp>())) {
-                // 处理每个 ReturnOp
                 SmallVector<Value, 4> newOperands;
                 for (auto operand : returnOp.getOperands()) {
                     auto oldType = operand.getType();
                     auto newType = type_converter.convertType(oldType);
                     if (newType != oldType) {
-                        // 插入类型转换操作
                         rewriter.setInsertionPoint(returnOp);
                         auto convertedOperand = type_converter.materializeTargetConversion(
                             rewriter, returnOp.getLoc(), newType, operand);
@@ -265,19 +230,11 @@ void LWEToRLWEPass::runOnOperation()
                         newOperands.push_back(operand);
                     }
                 }
-                // **确保旧的 ReturnOp 被正确地替换和删除**
-
-                // 首先，删除旧的 ReturnOp
                 rewriter.eraseOp(returnOp);
-
-                // 然后，将插入点设置为块的末尾，确保新插入的 ReturnOp 是最后一个操作
                 rewriter.setInsertionPointToEnd(&block);
-
-                // 创建新的 ReturnOp
                 rewriter.create<func::ReturnOp>(returnOp.getLoc(), newOperands);
             }
         }
-        rewriter.finalizeRootUpdate(op);
+        rewriter.finalizeOpModification(op);
     }
-
 }

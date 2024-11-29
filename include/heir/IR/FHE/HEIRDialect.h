@@ -22,7 +22,7 @@
 #define GET_TYPEDEF_CLASSES
 #include "heir/IR/FHE/HEIRTypes.h.inc"
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 
 // Include the C++ class (and associated functions) declarations for this Dialect's operations
 #define GET_OP_CLASSES

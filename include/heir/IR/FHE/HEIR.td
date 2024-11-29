@@ -18,9 +18,9 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
-include "mlir/Dialect/Arithmetic/IR/ArithmeticBase.td"
+// include "mlir/Dialect/Arithmetic/IR/ArithmeticBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
-// include "mlir/Dialect/Arith/IR/ArithBase.td"
+include "mlir/Dialect/Arith/IR/ArithBase.td"
 
 
 // Provide a definition of the 'heir' dialect in the ODS framework so that we
@@ -193,9 +193,9 @@ def RLWECipherVector: TypeDef<HEIR_Dialect, "RLWECipherVector"> {
 
   let description = "A type for vector of RLWE Cipher, corresponding to a plaintext matrix";
 
-  let mnemonic = "lweciphermat";
+  let mnemonic = "rlweciphermat";
 
-  let summary = "lweciphermat";
+  let summary = "rlweciphermat";
 
   let parameters = (ins
       "Type":$plaintextType,
@@ -220,7 +220,7 @@ def HEIR_Type : AnyTypeOf<[String, Int, Float, F64Vector, Plain, PlainVector,
 // constant operation is marked as '' as it is a pure operation
 // and may be removed if dead.
 def FHEDefineOp : HEIR_Op<"define",
-    [NoSideEffect]> {
+    [Pure]> {
   let summary = "Define a new ciphertext";
   let description = [{
     Convert variable assignment in C program to ciphertext definition in FHE porgram
@@ -230,7 +230,7 @@ def FHEDefineOp : HEIR_Op<"define",
 }
 
 def FHEEncodeOp : HEIR_Op<"encode",
-    [NoSideEffect]> {
+    [Pure]> {
   let summary = "LWE Encryption";
   let description = [{
     LWE Encryption fuction
@@ -242,7 +242,7 @@ def FHEEncodeOp : HEIR_Op<"encode",
 }
 
 def FHEExtractOp : HEIR_Op<"extract_init", 
-    [NoSideEffect]> {
+    [Pure]> {
   let summary = "Extract a single value from plain vector";
   let description = [{
     Extract a single value from plain vector.
@@ -253,7 +253,7 @@ def FHEExtractOp : HEIR_Op<"extract_init",
 }
 
 def FHEExtractfinalOp : HEIR_Op<"extract", 
-    [NoSideEffect]> {
+    [Pure]> {
   let summary = "Extract a single value from plain vector";
   let description = [{
     Extract a single value from plain vector.
@@ -286,7 +286,7 @@ def FHEInsertfinalOp : HEIR_Op<"insert",
 }
 
 def LWEMulOp : HEIR_Op<"lwemul",
-    [NoSideEffect]> {
+    [Pure]> {
   let summary = "LWECipher multiplication operation";
   let description = [{
     The "add" operation performs element-wise addition between two tensors.
@@ -300,7 +300,7 @@ def LWEMulOp : HEIR_Op<"lwemul",
 }
 
 def RLWEMulOp : HEIR_Op<"rlwemul",
-    [NoSideEffect]> {
+    [Pure]> {
   let summary = "LWECipher multiplication operation";
   let description = [{
     The "add" operation performs element-wise addition between two tensors.
@@ -316,7 +316,7 @@ def RLWEMulOp : HEIR_Op<"rlwemul",
 
 
 def LWEAddOp : HEIR_Op<"lweadd",
-    [NoSideEffect]> {
+    [Pure]> {
   let summary = "LWECipher addition operation";
   let description = [{
     The "add" operation performs element-wise addition between two tensors.
@@ -331,7 +331,7 @@ def LWEAddOp : HEIR_Op<"lweadd",
 }
 
 def LWESubOp : HEIR_Op<"lwesub",
-    [NoSideEffect]> {
+    [Pure]> {
   let summary = "LWECipher addition operation";
   let description = [{
     The "sub" operation performs element-wise addition between two tensors.
@@ -346,7 +346,7 @@ def LWESubOp : HEIR_Op<"lwesub",
 
 }
 
-def FHERotateOp: HEIR_Op<"rotate", [NoSideEffect]> {
+def FHERotateOp: HEIR_Op<"rotate", [Pure]> {
   let summary = "Rotate the RLWECipher in slot form.";
 
   let arguments = (ins 
@@ -361,7 +361,7 @@ def FHERotateOp: HEIR_Op<"rotate", [NoSideEffect]> {
   let hasFolder = 1;
 }
 
-def FHEMaterializeOp: HEIR_Op<"materialize", [NoSideEffect]> {
+def FHEMaterializeOp: HEIR_Op<"materialize", [Pure]> {
   let summary = "No-op operation used to preserve consistency of type system during type conversion";
 
   let arguments = (ins AnyType:$input);

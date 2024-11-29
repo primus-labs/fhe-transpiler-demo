@@ -1,74 +1,58 @@
 # fhe-transpiler-demo
 
 ## Installation
-First, starting from any directory and make a new directory. Here we default to /home/
+First, clone this repo.
 ```bash
-mkdir fhetran
-cd fhetran
+git clone https://github.com/primus-labs/fhe-transpiler-demo.git
 ```
 
 ### Front-End
-Starting from the ``fhetran`` and clone this repo.
+Starting from the ``fhe-transpiler-demo`` directory and clone this repo.
 ```bash
-git clone https://github.com/primus-labs/fhe-transpiler-demo
-cd fhe-transpiler-demo
+cd fhe-transpiler-demo/thirdparty
 ```
 
-Then build the first LLVM for the front-end.
+Then build ``LLVM19`` for the front-end.
 ```bash
-git clone https://github.com/llvm/llvm-project.git
+git clone -b release/19.x https://github.com/llvm/llvm-project.git
 cd llvm-project
-git checkout 8e0daabe97cf5e73402bcb4c3e54b3583199ba8f
 mkdir build
-cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="mlir"    \
--DLLVM_BUILD_EXAMPLES=ON -DLLVM_TARGETS_TO_BUILD="host"          \
--DCMAKE_BUILD_TYPE=Release -DPython3_EXECUTABLE=$(which python3) \
--DMLIR_ENABLE_BINDINGS_PYTHON=ON -DLLVM_ENABLE_RTTI=ON -DCMAKE_INSTALL_PREFIX=~/mylibs
+cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="mlir" -DLLVM_BUILD_EXAMPLES=ON \
+-DLLVM_TARGETS_TO_BUILD="host" -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON  \
+-DLLVM_INSTALL_UTILS=ON -DPython3_EXECUTABLE=$(which python3)                          \
+-DMLIR_ENABLE_BINDINGS_PYTHON=ON -DLLVM_ENABLE_RTTI=ON -DCMAKE_INSTALL_PREFIX=~/mylibs/llvm19
 cd build
-ninja install
-cd ../../..
+ninja -j 64
+cd ../../../
 ```
 
 ### Middle-End
-Starting from the ``fhetran`` directory.
-
-Clone llvm-15 from Github and build it. Note that LLVM-15 used for fhe-transpiler-demo
-Middle-End is not compatiable with LLVM for building Front-End.
-```bash
-git clone -b release/15.x https://github.com/llvm/llvm-project.git
-cd llvm-project
-mkdir build && cd build
-cmake -G Ninja ../llvm -DLLVM_ENABLE_PROJECTS="mlir" -DLLVM_BUILD_EXAMPLES=ON \
--DLLVM_TARGETS_TO_BUILD="X86" -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON \
--DLLVM_INSTALL_UTILS=ON -DCMAKE_INSTALL_PREFIX=~/mylibs
-ninja -j N
-```
+Starting from the ``fhe-transpiler-demo`` directory.
 
 Build fhe-transpiler-demo.
 ```bash
-cd ../../fhe-transpiler-demo
-mkdir build && cd build
-cmake .. -DMLIR_DIR=/home/fhetran/llvm-project/build/lib/cmake/mlir -DCMAKE_INSTALL_PREFIX=~/mylibs
-cmake --build . --target all
-cd ../../
+mkdir build &&  mkdir test
+cd build
+cmake .. -DMLIR_DIR=thirdparty/llvm-project/build/lib/cmake/mlir -DCMAKE_INSTALL_PREFIX=~/mylibs/fhetran
+cmake --build . --target all -j
+cd ../
 ```
 
 ### Back-End
-Starting from the ``fhetran`` directory.
+Starting from the ``fhe-transpiler-demo`` directory.
 
 Clone and make build directory for modified [OpenPEGASUS](https://github.com/ruiyushen/OpenPEGASUS) library.
 ```bash
+cd thirdparty
 git clone https://github.com/ruiyushen/OpenPEGASUS.git
-mkdir build-release
-cd ../fhe-transpiler-demo
+mkdir build
+cd ../../../
 ```
 
 ## Using Demo
-First, Set the absolute addresses of each library in ``fhecomplr/config.ini``.
-
-Next, we go to the fhe-transpiler-demo folder and configure PYTHONPATH.
+Before using demo, go to the fhe-transpiler-demo folder and configure PYTHONPATH.
 ```bash
-export PYTHONPATH=llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
+export PYTHONPATH=thirdparty/llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
 ```
 
 Run  ```fhecomplr_test.py``` to get the test results.

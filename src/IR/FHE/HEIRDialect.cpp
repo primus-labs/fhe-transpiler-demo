@@ -46,34 +46,32 @@ using namespace heir;
 #include "heir/IR/FHE/HEIR.cpp.inc"
 
 /// simplifies away materialization(materialization(x)) to x if the types work
-::mlir::OpFoldResult heir::FHEMaterializeOp::fold(::llvm::ArrayRef<::mlir::Attribute> operands)
+/// simplifies away materialization(materialization(x)) to x if the types work
+::mlir::OpFoldResult heir::FHEMaterializeOp::fold(heir::FHEMaterializeOp::FoldAdaptor adaptor)
 {
-    if (auto m_op = input().getDefiningOp<heir::FHEMaterializeOp>()) {
-        if (m_op.input().getType() == result().getType())
-            return m_op.input();
-        if (auto mm_op = m_op.input().getDefiningOp<heir::FHEMaterializeOp>()) {
-            if (mm_op.input().getType() == result().getType())
-                return mm_op.input();
+    if (auto m_op = getInput().getDefiningOp<heir::FHEMaterializeOp>()) {
+        if (m_op.getInput().getType() == getResult().getType())
+            return m_op.getInput();
+        if (auto mm_op = m_op.getInput().getDefiningOp<heir::FHEMaterializeOp>()) {
+            if (mm_op.getInput().getType() == getResult().getType())
+                return mm_op.getInput();
         }
     }
-    else if (input().getType() == result().getType()) {
-        return input();
+    else if (getInput().getType() == getResult().getType()) {
+        return getInput();
     }
     return {};
-    
 
 }
 
 /// simplify rotate(cipher, 0) to cipher
-::mlir::OpFoldResult heir::FHERotateOp::fold(::llvm::ArrayRef<::mlir::Attribute> operands)
+::mlir::OpFoldResult heir::FHERotateOp::fold(heir::FHERotateOp::FoldAdaptor adaptor)
 {
-    if (i() == 0)
-        return cipher();
+    if (getI() == 0)
+        return getCipher();
 
     return {};
 }
-
-//===----------------------------------------------------------------------===//
 // FHE dialect definitions
 //===----------------------------------------------------------------------===//
 #include "heir/IR/FHE/HEIRDialect.cpp.inc"

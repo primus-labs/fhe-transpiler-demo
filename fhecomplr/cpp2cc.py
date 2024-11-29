@@ -1,5 +1,5 @@
 import re
-from fhecomplr import Imageplain
+from fhecomplr.image import Imageplain
 
 class OpenPEGASUSGenerator():
     def __init__(self, function_file_path):

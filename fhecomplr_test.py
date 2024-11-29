@@ -31,10 +31,10 @@ def binary64x64(arg0:list[float, 4096], arg1:list[float, 4096]):
     return arg1
 
 compiler = fhecomplr.Compiler()
-img = compiler.read("/home/fhetran/fhe-transpiler-demo/benchmarks/binary/test.png")
+img = compiler.read("./benchmarks/binary/test.png")
 img.show()
-compiler.compile(binary64x64, img)
+compiler.compile(encryptedBoxBlur_64x64, img)
 output_image = compiler.run()
 output_image.show()
-output_image.save("/home/fhetran/fhe-transpiler-demo-main/benchmarks/binary64x64.png")
+output_image.save("./test/binary64x64.png")
 

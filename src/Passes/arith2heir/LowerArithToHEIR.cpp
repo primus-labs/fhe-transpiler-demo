@@ -9,7 +9,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 using namespace mlir;
@@ -18,8 +18,8 @@ using namespace heir;
 
 void LowerArithToHEIRPass::getDependentDialects(mlir::DialectRegistry &registry) const 
 {
-    registry.insert<ArithmeticDialect>();
-    registry.insert<AffineDialect>();
+    registry.insert<ArithDialect>();
+    registry.insert<affine::AffineDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<HEIRDialect>();
     registry.insert<scf::SCFDialect>();
@@ -374,15 +374,15 @@ LogicalResult ArithConstOperation(IRRewriter &rewriter, MLIRContext *context, Co
 // Add FHEMaterializeOp for FHELUTOp in case data type inconsistant during type conversion
 LogicalResult FHELUTTypeOperation(IRRewriter &rewriter, MLIRContext *context, FHELUTOp op, TypeConverter typeConverter)
 {
-    auto inputType = op.input().getType();
+    auto inputType = op.getInput().getType();
     auto outputType = op.getType();
     auto socType = typeConverter.convertType(inputType);
     auto dstType = typeConverter.convertType(outputType);
 
     rewriter.setInsertionPoint(op);
-    auto forward_mat_op = rewriter.create<FHEMaterializeOp>(op.getLoc(), socType, op.input());
-    auto newLUTOp = rewriter.create<FHELUTOp>(forward_mat_op.getLoc(), dstType, forward_mat_op.result());
-    rewriter.replaceOpWithNewOp<FHEMaterializeOp>(op, outputType, newLUTOp.result());
+    auto forward_mat_op = rewriter.create<FHEMaterializeOp>(op.getLoc(), socType, op.getInput());
+    auto newLUTOp = rewriter.create<FHELUTOp>(forward_mat_op.getLoc(), dstType, forward_mat_op.getResult());
+    rewriter.replaceOpWithNewOp<FHEMaterializeOp>(op, outputType, newLUTOp.getResult());
     
     return success();
 }
@@ -396,27 +396,27 @@ void LowerArithToHEIRPass::runOnOperation()
     type_converter.addConversion([&](Type t) {
         // llvm::errs()<<"\n1\n";
         if (t.isa<Float32Type>())
-            return llvm::Optional<Type>(LWECipherType::get(&getContext(), t));
+            return std::optional<Type>(LWECipherType::get(&getContext(), t));
         else if (t.isa<IntegerType>())
-            return llvm::Optional<Type>(LWECipherType::get(&getContext(), Float32Type::getF32(&getContext())));
+            return std::optional<Type>(LWECipherType::get(&getContext(), Float32Type::getF32(&getContext())));
         else if (t.isa<MemRefType>())
         {
             int size = -155;
             auto new_t = t.cast<MemRefType>();
             if (new_t.hasStaticShape() && new_t.getShape().size()==1) {
                 size = new_t.getShape().front();
-                return llvm::Optional<Type>(LWECipherVectorType::get(&getContext(), new_t.getElementType(), size));
+                return std::optional<Type>(LWECipherVectorType::get(&getContext(), new_t.getElementType(), size));
             }
             else if (new_t.hasStaticShape() && new_t.getShape().size()==2) {
                 int row = new_t.getShape().front();
                 int column = new_t.getShape().back();
-                return llvm::Optional<Type>(LWECipherMatrixType::get(&getContext(), new_t.getElementType(), row, column));
+                return std::optional<Type>(LWECipherMatrixType::get(&getContext(), new_t.getElementType(), row, column));
             }
             else 
-                return llvm::Optional<Type>(t);
+                return std::optional<Type>(t);
         }
         else
-            return llvm::Optional<Type>(t);
+            return std::optional<Type>(t);
     });
     type_converter.addTargetMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         // llvm::errs()<<"\n2\n";
@@ -427,11 +427,11 @@ void LowerArithToHEIRPass::runOnOperation()
             if (old_type.dyn_cast_or_null<Float32Type>())
             {
                 // llvm::errs()<<"\n"<<llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs))<<"\n";
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<IntegerType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherVectorType>())
@@ -440,7 +440,7 @@ void LowerArithToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherMatrixType>())
@@ -449,10 +449,10 @@ void LowerArithToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addArgumentMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         // llvm::errs()<<"\n3\n";
@@ -462,12 +462,12 @@ void LowerArithToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<Float32Type>())
             {
-                // llvm::errs()<<"\n"<<llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs))<<"\n";
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                // llvm::errs()<<"\n"<<std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs))<<"\n";
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<IntegerType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherVectorType>())
@@ -476,7 +476,7 @@ void LowerArithToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherMatrixType>())
@@ -485,10 +485,10 @@ void LowerArithToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addSourceMaterialization([&](OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         if (auto bst = t.dyn_cast_or_null<Float32Type>())
@@ -497,8 +497,8 @@ void LowerArithToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<LWECipherType>())
             {
-                // llvm::errs()<<"\n"<<llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                // llvm::errs()<<"\n"<<std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
             }
         }
         else if (auto bst = t.dyn_cast_or_null<IntegerType>())
@@ -506,22 +506,22 @@ void LowerArithToHEIRPass::runOnOperation()
             assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materialize single values");
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<LWECipherType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
         else if (auto bst = t.dyn_cast_or_null<MemRefType>())
         {
             assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materialize single values");
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<LWECipherVectorType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
             else if (auto ot = old_type.dyn_cast_or_null<LWECipherMatrixType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     
     ConversionTarget target(getContext());
-    target.addLegalDialect<AffineDialect, func::FuncDialect, scf::SCFDialect, ArithmeticDialect>();
+    target.addLegalDialect<affine::AffineDialect, func::FuncDialect, scf::SCFDialect, ArithDialect>();
     target.addLegalDialect<memref::MemRefDialect>();
     target.addLegalDialect<HEIRDialect>();
     target.addLegalOp<ModuleOp>();
@@ -537,7 +537,7 @@ void LowerArithToHEIRPass::runOnOperation()
 
     mlir::RewritePatternSet selectPatterns(&getContext());
     ConversionTarget newtarget(getContext());
-    newtarget.addLegalDialect<AffineDialect, func::FuncDialect, scf::SCFDialect, ArithmeticDialect>();
+    newtarget.addLegalDialect<affine::AffineDialect, func::FuncDialect, scf::SCFDialect, ArithDialect>();
     newtarget.addLegalDialect<memref::MemRefDialect>();
     newtarget.addLegalDialect<HEIRDialect>();
     newtarget.addLegalOp<ModuleOp>();

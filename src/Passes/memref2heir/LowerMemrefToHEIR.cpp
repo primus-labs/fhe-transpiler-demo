@@ -8,7 +8,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/IR/Builders.h"
@@ -23,8 +23,8 @@ using namespace memref;
 
 void LowerMemrefToHEIRPass::getDependentDialects(mlir::DialectRegistry &registry) const 
 {
-    registry.insert<ArithmeticDialect>();
-    registry.insert<AffineDialect>();
+    registry.insert<ArithDialect>();
+    registry.insert<affine::AffineDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<HEIRDialect>();
 }
@@ -80,13 +80,13 @@ public:
 
 
 // Transform the AffineLoadOp into FHEExtractOp, convert memref type into LWECipherVec type
-class AffineLoadPattern final : public OpConversionPattern<AffineLoadOp>
+class AffineLoadPattern final : public OpConversionPattern<affine::AffineLoadOp>
 {
 public:
-    using OpConversionPattern<AffineLoadOp>::OpConversionPattern;
+    using OpConversionPattern<affine::AffineLoadOp>::OpConversionPattern;
 
     LogicalResult matchAndRewrite(
-        AffineLoadOp op, typename AffineLoadOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
+        affine::AffineLoadOp op, typename affine::AffineLoadOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
     {
         auto dstType = this->getTypeConverter()->convertType(op.getType());
         if (!dstType)
@@ -119,7 +119,7 @@ public:
 
             SmallVector<Value, 8> indices(op.getMapOperands());
             auto resultOperands =
-                expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
+                affine::expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
             if (!resultOperands)
                 return failure();
         
@@ -130,13 +130,13 @@ public:
 };
 
 // Transform the AffineLoadOp into FHEInsertOp, convert memref type into LWECipherVec type
-class AffineStorePattern final : public OpConversionPattern<AffineStoreOp>
+class AffineStorePattern final : public OpConversionPattern<affine::AffineStoreOp>
 {
 public:
-    using OpConversionPattern<AffineStoreOp>::OpConversionPattern;
+    using OpConversionPattern<affine::AffineStoreOp>::OpConversionPattern;
 
     LogicalResult matchAndRewrite(
-        AffineStoreOp op, typename AffineStoreOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
+        affine::AffineStoreOp op, typename affine::AffineStoreOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
     {
         Type elementType = op.getMemRef().getType();
 
@@ -167,7 +167,7 @@ public:
             // llvm::errs()<<"\n"<<op<<"\n"<<op.getValue()<<"\n"<<op.getValueToStore()<<"\n"<<batchedCipher<<"\n";
             SmallVector<Value, 8> indices(op.getMapOperands());
             auto resultOperands =
-                expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
+                affine::expandAffineMap(rewriter, op.getLoc(), op.getAffineMap(), indices);
             if (!resultOperands)
                 return failure();
 
@@ -195,11 +195,11 @@ public:
         if (!dstType) 
             return failure();
         
-        auto memrefType = typeConverter->convertType(op.memref().getType());
-        auto new_memref = typeConverter->materializeTargetConversion(rewriter, op.memref().getLoc(),
-                                                                        memrefType, op.memref());
+        auto memrefType = typeConverter->convertType(op.getMemref().getType());
+        auto new_memref = typeConverter->materializeTargetConversion(rewriter, op.getMemref().getLoc(),
+                                                                        memrefType, op.getMemref());
         
-        auto cOp = op.indices().getDefiningOp<arith::ConstantOp>();
+        auto cOp = op.getIndices().getDefiningOp<arith::ConstantOp>();
         if (!cOp)
         {
             emitError(op.getLoc(),
@@ -229,18 +229,18 @@ void LowerMemrefToHEIRPass::runOnOperation()
             auto new_t = t.cast<MemRefType>();
             if (new_t.hasStaticShape() && new_t.getShape().size()==1) {
                 size = new_t.getShape().front();
-                return llvm::Optional<Type>(LWECipherVectorType::get(&getContext(), new_t.getElementType(), size));
+                return std::optional<Type>(LWECipherVectorType::get(&getContext(), new_t.getElementType(), size));
             }
             else if (new_t.hasStaticShape() && new_t.getShape().size()==2) {
                 int row = new_t.getShape().front();
                 int column = new_t.getShape().back();
-                return llvm::Optional<Type>(LWECipherMatrixType::get(&getContext(), new_t.getElementType(), row, column));
+                return std::optional<Type>(LWECipherMatrixType::get(&getContext(), new_t.getElementType(), row, column));
             }
             else 
-                return llvm::Optional<Type>(t);
+                return std::optional<Type>(t);
         }
         else
-            return llvm::Optional<Type>(t);
+            return std::optional<Type>(t);
     });
     type_converter.addTargetMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         // // if (auto ot = t.dyn_cast_or_null<LWECipherVectorType>())
@@ -260,7 +260,7 @@ void LowerMemrefToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherMatrixType>())
@@ -269,10 +269,10 @@ void LowerMemrefToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addArgumentMaterialization([&] (OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         // // if (auto ot = t.dyn_cast_or_null<LWECipherVectorType>())
@@ -292,7 +292,7 @@ void LowerMemrefToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
         else if (auto ot = t.dyn_cast_or_null<LWECipherMatrixType>())
@@ -301,10 +301,10 @@ void LowerMemrefToHEIRPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (old_type.dyn_cast_or_null<MemRefType>())
             {
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     type_converter.addSourceMaterialization([&](OpBuilder &builder, Type t, ValueRange vs, Location loc) {
         // // if (auto bst = t.dyn_cast_or_null<MemRefType>())
@@ -320,20 +320,20 @@ void LowerMemrefToHEIRPass::runOnOperation()
         {
             // Only support float type in C Program
             if (bst.getElementType().dyn_cast_or_null<Float32Type>())
-                return llvm::Optional<Value>(llvm::None);
+                return std::optional<Value>(std::nullopt);
             
             assert(!vs.empty() && ++vs.begin() == vs.end() && "currently can only materialize single values");
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<LWECipherVectorType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
             else if (auto ot = old_type.dyn_cast_or_null<LWECipherMatrixType>())
-                return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     
     ConversionTarget target(getContext());
-    target.addLegalDialect<AffineDialect, func::FuncDialect, tensor::TensorDialect, scf::SCFDialect, ArithmeticDialect, MemRefDialect>();
+    target.addLegalDialect<affine::AffineDialect, func::FuncDialect, tensor::TensorDialect, scf::SCFDialect, ArithDialect, MemRefDialect>();
     target.addLegalDialect<HEIRDialect>();
     target.addLegalOp<ModuleOp>();
     // target.addIllegalOp<AffineForOp>();
@@ -341,8 +341,8 @@ void LowerMemrefToHEIRPass::runOnOperation()
     IRRewriter rewriter(&getContext());
     
     // MemRefToHEIR
-    target.addIllegalOp<AffineLoadOp>();
-    target.addIllegalOp<AffineStoreOp>();
+    target.addIllegalOp<affine::AffineLoadOp>();
+    target.addIllegalOp<affine::AffineStoreOp>();
     target.addIllegalOp<LoadOp>();
     // target.addIllegalOp<FHEVectorLoadOp>();
     mlir::RewritePatternSet patterns(&getContext());

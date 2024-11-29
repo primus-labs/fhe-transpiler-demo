@@ -92,7 +92,7 @@ public:
         else
             return failure();
         
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(
             op, TypeRange(dstType), llvm::StringRef(op_str), ArrayAttr(), ArrayAttr(),
             materialized_operands);
         
@@ -134,16 +134,16 @@ public:
             getContext(), { IntegerAttr::get(
                                 IndexType::get(getContext()),
                                 0), // means "first operand"
-                            rewriter.getSI32IntegerAttr(op.i()) });
+                            rewriter.getSI32IntegerAttr(op.getI()) });
 
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(
             op, dstType, llvm::StringRef("RotateLeft"), aa, ArrayAttr(), o);
         return success();
     }
 };
 
 
-// Pattern for transform LWEMulOp to emitc:CallOp
+// Pattern for transform LWEMulOp to emitc:CallOpaqueOp
 class EmitCMulPattern final : public OpConversionPattern<LWEMulOp>
 {
 protected:
@@ -182,7 +182,7 @@ public:
         // build a series of calls to our custom halo operator wrapper
         std::string op_str = "lwe_multiply";
         
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(
             op, TypeRange(dstType), llvm::StringRef(op_str), ArrayAttr(), ArrayAttr(),
             materialized_operands);
         
@@ -236,7 +236,7 @@ public:
         if (!dstType)
             return failure();
 
-        auto input = op.message();
+        auto input = op.getMessage();
         double msg = input.convertToDouble();
         FloatAttr mat_input = FloatAttr::get(Float64Type::get(rewriter.getContext()), msg);
 
@@ -259,7 +259,7 @@ public:
         
         std::string op_str = "encode_sisd";
 
-        rewriter.create<emitc::CallOp>(plainConstOp.getLoc(), TypeRange(), 
+        rewriter.create<emitc::CallOpaqueOp>(plainConstOp.getLoc(), TypeRange(), 
                 llvm::StringRef(op_str), ArrayAttr(), ArrayAttr(), materialized_operands);
 
         return success();
@@ -314,14 +314,14 @@ public:
             op_str = "lut";
         }
         
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(op, TypeRange(dstType), 
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(op, TypeRange(dstType), 
             llvm::StringRef(op_str), ArrayAttr(), ArrayAttr(), materialized_operands);
 
         return success();
     }
 };
 
-// Transform FHEMaterializeOp to emitc::CallOp in case we have some problems
+// Transform FHEMaterializeOp to emitc::CallOpaqueOp in case we have some problems
 // in the previous passes
 class EmitCMaterializePattern final : public OpConversionPattern<FHEMaterializeOp>
 {
@@ -354,7 +354,7 @@ public:
 
         std::string op_str = "materialize";
 
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(op, TypeRange(dstType), 
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(op, TypeRange(dstType), 
             llvm::StringRef(op_str), ArrayAttr(), ArrayAttr(), materialized_operands);
 
         return success();
@@ -395,8 +395,8 @@ public:
             new_operand = input_vector;
         // For Matrix, two-dimentional data
         if (auto t = input_vector.getType().dyn_cast_or_null<LWECipherMatrixType>()) {
-            auto rowAttr = op.rowAttr().cast<IntegerAttr>();
-            auto colAttr = op.colAttr().cast<IntegerAttr>();
+            auto rowAttr = op.getRowAttr().cast<IntegerAttr>();
+            auto colAttr = op.getColAttr().cast<IntegerAttr>();
 
             auto aa = ArrayAttr::get(
             getContext(), {
@@ -407,12 +407,12 @@ public:
                               rewriter.getSI32IntegerAttr(rowAttr.getInt())
                           });
 
-            rewriter.replaceOpWithNewOp<emitc::CallOp>(op, dstType, llvm::StringRef("load"),
+            rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(op, dstType, llvm::StringRef("load"),
                                             aa, ArrayAttr(), new_operand);
         }
         // For Vector, one-dimentional data
         else {
-            auto colAttr = op.colAttr().cast<IntegerAttr>();
+            auto colAttr = op.getColAttr().cast<IntegerAttr>();
 
             auto aa = ArrayAttr::get(
             getContext(), {
@@ -421,7 +421,7 @@ public:
                                   0), // means "first operand"
                               rewriter.getSI32IntegerAttr(colAttr.getInt())
                           });
-            rewriter.replaceOpWithNewOp<emitc::CallOp>(op, dstType, llvm::StringRef("load"),
+            rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(op, dstType, llvm::StringRef("load"),
                                             aa, ArrayAttr(), new_operand);
         }
         
@@ -442,7 +442,7 @@ public:
         if (!dstType)
             return failure();
         
-        Value matrix = op.memref();
+        Value matrix = op.getMemref();
         auto operandDstType = typeConverter->convertType(matrix.getType());
         if (!operandDstType)
             return failure();
@@ -451,7 +451,7 @@ public:
             new_matrix = typeConverter->materializeTargetConversion(rewriter, op.getLoc(), operandDstType, matrix);
         else 
             new_matrix = matrix;
-        auto indexAttr = op.indexAttr().cast<IntegerAttr>();
+        auto indexAttr = op.getIndexAttr().cast<IntegerAttr>();
 
         auto aa = ArrayAttr::get(
             getContext(), {
@@ -461,7 +461,7 @@ public:
                               rewriter.getSI32IntegerAttr(indexAttr.getInt())
                           });
         
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(op, dstType, llvm::StringRef("vector_load"),
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(op, dstType, llvm::StringRef("vector_load"),
                                             aa, ArrayAttr(), new_matrix);
 
         return success();
@@ -479,7 +479,7 @@ public:
         auto dstType = typeConverter->convertType(op.getType());
         if (!dstType)
             return failure();
-        Value input = op.input();
+        Value input = op.getInput();
         auto inputDstType = typeConverter->convertType(input.getType());
         if (!inputDstType)
             return failure();
@@ -489,9 +489,9 @@ public:
             new_input = typeConverter->materializeTargetConversion(rewriter, op.getLoc(), inputDstType, input);
         else
             new_input = input;
-        auto edge2Attr = op.edge2Attr();
-        auto edge1Attr = op.edge1Attr();
-        auto thresholdAttr = op.thresholdAttr();
+        auto edge2Attr = op.getEdge2Attr();
+        auto edge1Attr = op.getEdge1Attr();
+        auto thresholdAttr = op.getThresholdAttr();
         auto args = ArrayAttr::get(
             getContext(),
             {
@@ -501,8 +501,8 @@ public:
                 thresholdAttr
             });
 
-        // 替换为 emitc::CallOp
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(
+        // 替换为 emitc::CallOpaqueOp
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(
             op,
             TypeRange{dstType},
             llvm::StringRef("comparelut"),
@@ -522,16 +522,16 @@ public:
         HEIRCopyOp op, typename HEIRCopyOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
     {
         rewriter.setInsertionPoint(op);
-        Type sourceType = typeConverter->convertType(op.source().getType());
-        Type targetType = typeConverter->convertType(op.target().getType());
-        auto new_source = typeConverter->materializeTargetConversion(rewriter, op.source().getLoc(),
-                                                                            sourceType, op.source());
-        auto new_target = typeConverter->materializeTargetConversion(rewriter, op.target().getLoc(),
-                                                                            targetType, op.target());
+        Type sourceType = typeConverter->convertType(op.getSource().getType());
+        Type targetType = typeConverter->convertType(op.getTarget().getType());
+        auto new_source = typeConverter->materializeTargetConversion(rewriter, op.getSource().getLoc(),
+                                                                            sourceType, op.getSource());
+        auto new_target = typeConverter->materializeTargetConversion(rewriter, op.getTarget().getLoc(),
+                                                                            targetType, op.getTarget());
         llvm::SmallVector<Value> materialized_operands;
         materialized_operands.push_back(new_source);
         materialized_operands.push_back(new_target);
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(op, TypeRange(), llvm::StringRef("copy"),
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(op, TypeRange(), llvm::StringRef("copy"),
                                             ArrayAttr(), ArrayAttr(), materialized_operands);
         return success();
     }
@@ -548,8 +548,8 @@ public:
         FHEInsertfinalOp op, typename FHEInsertfinalOp::Adaptor adaptor, ConversionPatternRewriter &rewriter) const override
     {        
         rewriter.setInsertionPoint(op);
-        Type dstVecType = typeConverter->convertType(op.memref().getType());
-        Type dstValType = typeConverter->convertType(op.value().getType());
+        Type dstVecType = typeConverter->convertType(op.getMemref().getType());
+        Type dstValType = typeConverter->convertType(op.getValue().getType());
         std::string vectorTypeString;
         llvm::StringRef addrTypeValue;
         if (auto t = dstVecType.dyn_cast_or_null<emitc::OpaqueType>()) {
@@ -562,14 +562,14 @@ public:
         auto test_addrTypeValue = addrType.getValue().str();
 
 
-        if (auto t = op.memref().getType().dyn_cast_or_null<LWECipherMatrixType>()) {
-            auto rowAttr = op.rowAttr().cast<IntegerAttr>();
-            auto colAttr = op.colAttr().cast<IntegerAttr>();
-            auto new_vector = typeConverter->materializeTargetConversion(rewriter, op.memref().getLoc(),
-                                                                            dstVecType, op.memref());
+        if (auto t = op.getMemref().getType().dyn_cast_or_null<LWECipherMatrixType>()) {
+            auto rowAttr = op.getRowAttr().cast<IntegerAttr>();
+            auto colAttr = op.getColAttr().cast<IntegerAttr>();
+            auto new_vector = typeConverter->materializeTargetConversion(rewriter, op.getMemref().getLoc(),
+                                                                            dstVecType, op.getMemref());
 
-            auto new_valueToStore = typeConverter->materializeTargetConversion(rewriter, op.value().getLoc(),
-                                                                                dstValType, op.value());
+            auto new_valueToStore = typeConverter->materializeTargetConversion(rewriter, op.getValue().getLoc(),
+                                                                                dstValType, op.getValue());
             llvm::SmallVector<Value> materialized_operands;
             materialized_operands.push_back(new_valueToStore);
             materialized_operands.push_back(new_vector);
@@ -586,20 +586,20 @@ public:
                               rewriter.getSI32IntegerAttr(rowAttr.getInt())
                           });
 
-            rewriter.replaceOpWithNewOp<emitc::CallOp>(op, TypeRange(), llvm::StringRef("store"),
+            rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(op, TypeRange(), llvm::StringRef("store"),
                                             aa, ArrayAttr(), materialized_operands);
         }
         // For Vector
         else {
             // llvm::SmallVector<Value> materialized_operands1;
-            auto aaa = op.memref().getDefiningOp<FHEMaterializeOp>().getOperand();
+            auto aaa = op.getMemref().getDefiningOp<FHEMaterializeOp>().getOperand();
             auto aaa1 = aaa.getDefiningOp<FHEMaterializeOp>().getOperand();
-            auto new_valueToStore = typeConverter->materializeTargetConversion(rewriter, op.value().getLoc(),
-                                                                                dstValType, op.value());
+            auto new_valueToStore = typeConverter->materializeTargetConversion(rewriter, op.getValue().getLoc(),
+                                                                                dstValType, op.getValue());
             llvm::SmallVector<Value> materialized_operands;
             materialized_operands.push_back(aaa1);
             materialized_operands.push_back(new_valueToStore);
-            auto colAttr = op.colAttr().cast<IntegerAttr>();
+            auto colAttr = op.getColAttr().cast<IntegerAttr>();
 
             auto aa = ArrayAttr::get(
             getContext(), {
@@ -611,7 +611,7 @@ public:
                             //       1), // means "second operand"
                               rewriter.getSI32IntegerAttr(colAttr.getInt())
                           });
-            rewriter.replaceOpWithNewOp<emitc::CallOp>(op, TypeRange(), llvm::StringRef("insert"),
+            rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(op, TypeRange(), llvm::StringRef("insert"),
                                             aa, ArrayAttr(), materialized_operands);
         }
 
@@ -695,9 +695,9 @@ public:
                 materialized_operands.push_back(o);
             }
         }
-        auto func_name = op.callee();
+        auto func_name = op.getCallee();
 
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(
             op, TypeRange(resultType), func_name, ArrayAttr(), ArrayAttr(), materialized_operands);
     
         return success();
@@ -738,7 +738,7 @@ public:
         }
         auto func_name = op.getCallee();
 
-        rewriter.replaceOpWithNewOp<emitc::CallOp>(
+        rewriter.replaceOpWithNewOp<emitc::CallOpaqueOp>(
             op, TypeRange(resultType), func_name, ArrayAttr(), ArrayAttr(), materialized_operands);
 
         return success();
@@ -764,7 +764,7 @@ public:
             return failure();
         auto new_functype = FunctionType::get(getContext(), signatureConversion.getConvertedTypes(), newResultTypes);
 
-        rewriter.startRootUpdate(op);
+        rewriter.startOpModification(op);
         op.setType(new_functype);
         for (auto it = op.getRegion().args_begin(); it != op.getRegion().args_end(); ++it)
         {
@@ -779,7 +779,7 @@ public:
                 arg.replaceAllUsesExcept(m_op, m_op.getDefiningOp());
             }
         }
-        rewriter.finalizeRootUpdate(op);
+        rewriter.finalizeOpModification(op);
 
         return success();
     }
@@ -806,7 +806,7 @@ public:
         {
             rewriter.setInsertionPoint(op);
             auto materialized =
-                typeConverter->materializeTargetConversion(rewriter, op.getLoc(), dstType, op.operands());
+                typeConverter->materializeTargetConversion(rewriter, op.getLoc(), dstType, op.getOperands());
             // build a new return op
             rewriter.replaceOpWithNewOp<func::ReturnOp>(op, materialized);
 
@@ -824,19 +824,19 @@ void LowerHEIRToEmitCPass::runOnOperation()
     // Type conversion, convert HEIR types into emitc C++ types
     type_converter.addConversion([&](Type t) {
         if (t.isa<LWECipherType>())
-            return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "LWECipher"));
+            return std::optional<Type>(emitc::OpaqueType::get(&getContext(), "LWECipher"));
         else if (t.isa<RLWECipherType>())
-            return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "Ctx"));
+            return std::optional<Type>(emitc::OpaqueType::get(&getContext(), "Ctx"));
         else if (t.isa<LWECipherVectorType>())
-            return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "std::vector<LWECipher>"));
+            return std::optional<Type>(emitc::OpaqueType::get(&getContext(), "std::vector<LWECipher>"));
         else if (t.isa<LWECipherMatrixType>())
-            return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "std::vector<std::vector<LWECipher>>"));
+            return std::optional<Type>(emitc::OpaqueType::get(&getContext(), "std::vector<std::vector<LWECipher>>"));
         else if (t.isa<IndexType>())
-            return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "int"));
+            return std::optional<Type>(emitc::OpaqueType::get(&getContext(), "int"));
         else if (t.isa<PlainType>())
-            return llvm::Optional<Type>(emitc::OpaqueType::get(&getContext(), "InterPlain"));
+            return std::optional<Type>(emitc::OpaqueType::get(&getContext(), "InterPlain"));
         else
-            return llvm::Optional<Type>(t);
+            return std::optional<Type>(t);
     });
 
     type_converter.addTargetMaterialization([&](OpBuilder &builder, Type t, ValueRange vs, Location loc) {
@@ -849,36 +849,36 @@ void LowerHEIRToEmitCPass::runOnOperation()
                 if (ot.getValue().str() == "LWECipher")
                 {
                     // llvm::errs() << "\n" << llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs)) << "\n";
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
                 }
             }
             else if (old_type.dyn_cast_or_null<RLWECipherType>())
             {
                 if (ot.getValue().str() == "Ctx")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<LWECipherVectorType>())
             {
                 if (ot.getValue().str() == "std::vector<LWECipher>")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<LWECipherMatrixType>())
             {
                 if (ot.getValue().str() == "std::vector<std::vector<LWECipher>>")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<IndexType>())
             {
                 if (ot.getValue().str() == "int")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<PlainType>())
             {
                 if (ot.getValue().str() == "InterPlain")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
 
     type_converter.addArgumentMaterialization([&](OpBuilder &builder, Type t, ValueRange vs, Location loc) {
@@ -889,37 +889,37 @@ void LowerHEIRToEmitCPass::runOnOperation()
             if (old_type.dyn_cast_or_null<LWECipherType>())
             {
                 if (ot.getValue().str() == "LWECipher"){
-                    // llvm::errs() << "\n1\n" << llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs)) << "\n";
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    // llvm::errs() << "\n1\n" << std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs)) << "\n";
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
                 }
             }
             else if (old_type.dyn_cast_or_null<RLWECipherType>())
             {
                 if (ot.getValue().str() == "Ctx")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<LWECipherVectorType>())
             {
                 if (ot.getValue().str() == "std::vector<LWECipher>")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<LWECipherMatrixType>())
             {
                 if (ot.getValue().str() == "std::vector<std::vector<LWECipher>>")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<IndexType>())
             {
                 if (ot.getValue().str() == "int")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
             else if (old_type.dyn_cast_or_null<PlainType>())
             {
                 if (ot.getValue().str() == "InterPlain")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, ot, vs));
             }
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
 
     type_converter.addSourceMaterialization([&](OpBuilder &builder, Type t, ValueRange vs, Location loc) {
@@ -929,9 +929,9 @@ void LowerHEIRToEmitCPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<emitc::OpaqueType>())
                 if (ot.getValue().str() == "LWECipher"){
-                    // llvm::errs() << "\n2\n" << llvm::Optional<Value>(vs.front())<<"\n"<<bst<< "\n"<<loc << "\n";
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
-                    // return llvm::Optional<Value>(vs.front());
+                    // llvm::errs() << "\n2\n" << std::optional<Value>(vs.front())<<"\n"<<bst<< "\n"<<loc << "\n";
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                    // return std::optional<Value>(vs.front());
                 }
         }
         else if (auto bst = t.dyn_cast_or_null<RLWECipherType>())
@@ -940,7 +940,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<emitc::OpaqueType>())
                 if (ot.getValue().str() == "Ctx")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
         else if (auto bst = t.dyn_cast_or_null<LWECipherVectorType>())
         {
@@ -948,7 +948,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<emitc::OpaqueType>())
                 if (ot.getValue().str() == "std::vector<LWECipher>")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
         else if (auto bst = t.dyn_cast_or_null<LWECipherMatrixType>())
         {
@@ -956,7 +956,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<emitc::OpaqueType>())
                 if (ot.getValue().str() == "std::vector<std::vector<LWECipher>>")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
         else if (auto bst = t.dyn_cast_or_null<IndexType>())
         {
@@ -964,7 +964,7 @@ void LowerHEIRToEmitCPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<emitc::OpaqueType>())
                 if (ot.getValue().str() == "int")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
         else if (auto bst = t.dyn_cast_or_null<PlainType>())
         {
@@ -972,9 +972,9 @@ void LowerHEIRToEmitCPass::runOnOperation()
             auto old_type = vs.front().getType();
             if (auto ot = old_type.dyn_cast_or_null<emitc::OpaqueType>())
                 if (ot.getValue().str() == "InterPlain")
-                    return llvm::Optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
+                    return std::optional<Value>(builder.create<FHEMaterializeOp>(loc, bst, vs));
         }
-        return llvm::Optional<Value>(llvm::None);
+        return std::optional<Value>(std::nullopt);
     });
     ConversionTarget target(getContext());
     target.addIllegalDialect<HEIRDialect>();

@@ -8,7 +8,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/IR/Builders.h"
@@ -22,8 +22,8 @@ using namespace memref;
 
 void ReplaceIfWithLutPass::getDependentDialects(mlir::DialectRegistry &registry) const 
 {
-    registry.insert<ArithmeticDialect>();
-    registry.insert<AffineDialect>();
+    registry.insert<ArithDialect>();
+    registry.insert<affine::AffineDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<HEIRDialect>();
 }
@@ -53,7 +53,7 @@ public:
         if (!encodeOp)
             return failure();
         // 获取encode操作的message属性作为threshold
-        float threshold = encodeOp.message().convertToDouble();
+        float threshold = encodeOp.getMessage().convertToDouble();
         // 从scf.if的then和else分支中获取edge1和edge2的值
         // Then分支（真分支）
         Block &thenBlock = ifOp.getThenRegion().front();
@@ -107,8 +107,8 @@ public:
             rewriter.create<heir::FHEInsertfinalOp>(
             insertOp.getLoc(),
             lutOp.getResult(),
-            insertOp.memref(),
-            insertOp.colAttr(),
+            insertOp.getMemref(),
+            insertOp.getColAttr(),
             Attribute()
         );
         }
@@ -131,7 +131,7 @@ void ReplaceIfWithLutPass::runOnOperation() {
     mlir::ConversionTarget target(context);
     target.addLegalDialect<HEIRDialect>();
     target.addLegalDialect<func::FuncDialect>();
-    target.addLegalDialect<arith::ArithmeticDialect>();
+    target.addLegalDialect<arith::ArithDialect>();
     target.addLegalDialect<tensor::TensorDialect>();
     target.addLegalDialect<scf::SCFDialect>();
     // target.addLegalDialect<cf::ControlFlowDialect>();

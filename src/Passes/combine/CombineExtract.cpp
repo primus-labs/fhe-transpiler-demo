@@ -7,7 +7,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Rewrite/PatternApplicator.h"
 
@@ -18,7 +18,7 @@ using namespace heir;
 void CombineExtractPass::getDependentDialects(mlir::DialectRegistry &registry) const
 {
     registry.insert<heir::HEIRDialect,
-                    mlir::AffineDialect,
+                    mlir::affine::AffineDialect,
                     func::FuncDialect,
                     mlir::scf::SCFDialect>();
 }
@@ -48,10 +48,10 @@ void CombineExtractPass::runOnOperation()
     MLIRContext &context = getContext();
     mlir::ConversionTarget target(context);
     target.addLegalDialect<heir::HEIRDialect,
-                           mlir::AffineDialect,
+                           mlir::affine::AffineDialect,
                            func::FuncDialect,
                            mlir::scf::SCFDialect,
-                           arith::ArithmeticDialect>();
+                           arith::ArithDialect>();
     target.addIllegalOp<heir::FHECmpOp>();
     mlir::RewritePatternSet patterns(&context);
     patterns.add<RemoveUnusedComparePattern>(&context);
@@ -89,7 +89,7 @@ void CombineExtractPass::runOnOperation()
                 Value targetVar = nullptr;
                 bool patternMatched = true;
                 Operation *currentOp = extractOp->getNextNode();
-                auto excolAttr = extractOp.colAttr().cast<IntegerAttr>();
+                auto excolAttr = extractOp.getColAttr().cast<IntegerAttr>();
                 indices.push_back(excolAttr.getInt());
                 while (currentOp)
                 {
@@ -108,7 +108,7 @@ void CombineExtractPass::runOnOperation()
                         patternMatched = false;
                         break;
                     }
-                    auto incolAttr = insertOp.colAttr().cast<IntegerAttr>();
+                    auto incolAttr = insertOp.getColAttr().cast<IntegerAttr>();
                     if (!incolAttr)
                     {
                         patternMatched = false;
@@ -120,8 +120,8 @@ void CombineExtractPass::runOnOperation()
                         break;
                     }
                     if (!targetVar)
-                        targetVar = insertOp.memref();
-                    else if (insertOp.memref() != targetVar)
+                        targetVar = insertOp.getMemref();
+                    else if (insertOp.getMemref() != targetVar)
                     {
                         patternMatched = false;
                         break;
@@ -135,7 +135,7 @@ void CombineExtractPass::runOnOperation()
                             patternMatched = false;
                             break;
                         }
-                        excolAttr = nextExtractOp.colAttr().cast<IntegerAttr>();
+                        excolAttr = nextExtractOp.getColAttr().cast<IntegerAttr>();
                         if (!excolAttr)
                         {
                             patternMatched = false;
@@ -160,9 +160,9 @@ void CombineExtractPass::runOnOperation()
                     }
                     rewriter.setInsertionPoint(extractOps.front());
                     auto firstLutOp = lutOps.front();
-                    auto edge1Attr = firstLutOp.edge1Attr();
-                    auto edge2Attr = firstLutOp.edge2Attr();
-                    auto thresholdAttr = firstLutOp.thresholdAttr();
+                    auto edge1Attr = firstLutOp.getEdge1Attr();
+                    auto edge2Attr = firstLutOp.getEdge2Attr();
+                    auto thresholdAttr = firstLutOp.getThresholdAttr();
 
                     auto newLutOp = rewriter.create<HEIRLutOp>(
                         extractOp.getLoc(),
@@ -204,15 +204,15 @@ void CombineExtractPass::runOnOperation()
                 Value targetVar = nullptr;
                 bool patternMatched = true;
                 Operation *currentOp = op->getNextNode();
-                auto excolAttr = extractOp.colAttr().cast<IntegerAttr>();
+                auto excolAttr = extractOp.getColAttr().cast<IntegerAttr>();
                 while (currentOp)
                 {
                     if (auto insertOp = dyn_cast_or_null<FHEInsertfinalOp>(currentOp))
                     {
-                        auto incolAttr = insertOp.colAttr().cast<IntegerAttr>();
+                        auto incolAttr = insertOp.getColAttr().cast<IntegerAttr>();
                         if (!targetVar)
-                            targetVar = insertOp.memref();
-                        else if (insertOp.memref() != targetVar)
+                            targetVar = insertOp.getMemref();
+                        else if (insertOp.getMemref() != targetVar)
                         {
                             patternMatched = false;
                             break;
@@ -233,7 +233,7 @@ void CombineExtractPass::runOnOperation()
                                 break;
                             }
                             extractOps.push_back(nextExtractOp);
-                            excolAttr = nextExtractOp.colAttr().cast<IntegerAttr>();
+                            excolAttr = nextExtractOp.getColAttr().cast<IntegerAttr>();
                             currentOp = nextExtractOp->getNextNode();
                         }
                         else

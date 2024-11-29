@@ -13,16 +13,11 @@ from typing import Callable, Any
 
 class Compiler:
     def __init__(self):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        config_file = os.path.join(current_dir, 'config.ini')
-        if not os.path.exists(config_file):
-            raise FileNotFoundError(f"Configuration file not found: {config_file}")
-        config = configparser.ConfigParser()
-        config.read(config_file)
-        paths = config['paths']
-        self.fhe_transpiler_path = paths.get('FHE_TRANSPILER_PATH')
-        self.llvm_path = paths.get('LLVM_PATH')
-        self.openpegasus_path = paths.get('OPENPEGASUS_PATH')
+        absolute_path = os.path.abspath(__file__)
+        library_dir = os.path.dirname(absolute_path)
+        self.fhe_transpiler_path = os.path.dirname(library_dir)
+        self.llvm_path = os.path.join(self.fhe_transpiler_path, 'thirdparty/llvm-project')
+        self.openpegasus_path = os.path.join(self.fhe_transpiler_path, 'thirdparty/OpenPEGASUS')
         self.heir_opt_path = os.path.join(self.fhe_transpiler_path, 'build/bin/heir-opt')
         self.emitc_translate_path = os.path.join(self.fhe_transpiler_path, 'build/bin/emitc-translate')
         self.output_txt_path = None
@@ -78,7 +73,7 @@ class Compiler:
         if not filename.endswith(".cc"):
             raise ValueError(f"Provided file is not a .cc file: {filename}")
         base_name = os.path.splitext(filename)[0]
-        examples_path = os.path.join(self.openpegasus_path, "examples")
+        examples_path = os.path.join(self.openpegasus_path, "fhetranexamples")
         os.makedirs(examples_path, exist_ok=True)
         target_path = os.path.join(examples_path, filename)
         shutil.copy(cc_path, target_path)
@@ -89,7 +84,7 @@ target_link_libraries({base_name}_exe pegasus)
         """
         with open(cmake_file_path, 'w') as cmake_file:
             cmake_file.write(cmake_content.strip() + "\n")
-        return os.path.join(self.openpegasus_path, f'build-release/bin/{base_name}_exe')
+        return os.path.join(self.openpegasus_path, f'build/bin/{base_name}_exe')
     
     def is_directory_empty(self, directory: str):
         if not os.path.isdir(directory):
@@ -100,7 +95,7 @@ target_link_libraries({base_name}_exe pegasus)
         return True 
 
     def compile_pegasus(self):
-        build_dir = os.path.join(self.openpegasus_path, "build-release/")
+        build_dir = os.path.join(self.openpegasus_path, "build/")
         if os.path.exists(build_dir):
             if self.is_directory_empty(build_dir):
                 pass
@@ -144,7 +139,8 @@ target_link_libraries({base_name}_exe pegasus)
     def compile_plain(self, function: Callable, image: Imageplain):
         function_name = function.__name__
         source_code = inspect.getsource(function)
-        benchmark_path = os.path.join(self.fhe_transpiler_path, f'benchmarks/{function_name}')
+        benchmark_path = os.path.join(self.fhe_transpiler_path, f'test/{function_name}')
+        os.makedirs(benchmark_path, exist_ok=True)
 
         mlir_output_path = os.path.join(benchmark_path, f'{function_name}.mlir')
         self.pythontomlir(source_code, mlir_output_path)
@@ -167,7 +163,7 @@ target_link_libraries({base_name}_exe pegasus)
 
         exe_path = self.movecctopegasus(cc_output_path)
         self.exe_path = exe_path
-        self.compile_pegasus(exe_path)
+        self.compile_pegasus()
         print("Compile OpenPEGASUS: Done.")
 
 

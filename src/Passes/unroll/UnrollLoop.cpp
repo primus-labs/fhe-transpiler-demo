@@ -27,7 +27,7 @@ SOFTWARE.
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "heir/Passes/unroll/UnrollLoop.h"
 
 using namespace mlir;
@@ -35,16 +35,16 @@ using namespace arith;
 
 void UnrollLoopPass::getDependentDialects(mlir::DialectRegistry &registry) const 
 {
-    registry.insert<ArithmeticDialect>();
-    registry.insert<AffineDialect>();
+    registry.insert<ArithDialect>();
+    registry.insert<affine::AffineDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<heir::HEIRDialect>();
 }
 
-void unrollLoop(AffineForOp &op, IRRewriter &rewriter)
+void unrollLoop(affine::AffineForOp &op, IRRewriter &rewriter)
 {
     // First, let's recursively unroll all nested loops:
-    for (auto nested_loop : op.getOps<AffineForOp>())
+    for (auto nested_loop : op.getOps<affine::AffineForOp>())
     {
         unrollLoop(nested_loop, rewriter);
     }
@@ -64,7 +64,7 @@ void unrollLoop(AffineForOp &op, IRRewriter &rewriter)
 void UnrollLoopPass::runOnOperation()
 {
     ConversionTarget target(getContext());
-    target.addLegalDialect<AffineDialect, func::FuncDialect, tensor::TensorDialect, scf::SCFDialect, ArithmeticDialect>();
+    target.addLegalDialect<affine::AffineDialect, func::FuncDialect, tensor::TensorDialect, scf::SCFDialect, ArithDialect>();
     target.addLegalDialect<heir::HEIRDialect>();
     target.addLegalOp<ModuleOp>();
     target.addLegalOp<scf::IfOp>();
@@ -78,7 +78,7 @@ void UnrollLoopPass::runOnOperation()
     // TODO: There's likely a much better way to do this that's not this kind of manual walk!
     for (auto f : llvm::make_early_inc_range(block.getOps<func::FuncOp>()))
     {
-        for (auto op : llvm::make_early_inc_range(f.getBody().getOps<AffineForOp>()))
+        for (auto op : llvm::make_early_inc_range(f.getBody().getOps<affine::AffineForOp>()))
         {
             unrollLoop(op, rewriter);
         }
