@@ -7,7 +7,7 @@ git clone https://github.com/primus-labs/fhe-transpiler-demo.git
 ```
 
 ### Front-End
-Starting from the ``fhe-transpiler-demo`` directory and clone this repo.
+Starting from the ``fhe-transpiler-demo`` directory and clone submodules.
 ```bash
 cd fhe-transpiler-demo
 git submodule update --init --recursive
@@ -41,7 +41,7 @@ cd ../
 ### Back-End
 Starting from the ``fhe-transpiler-demo`` directory.
 
-Clone and make build directory for modified [OpenPEGASUS](https://github.com/ruiyushen/OpenPEGASUS) library.
+Make ``build`` directory for modified [OpenPEGASUS](https://github.com/ruiyushen/OpenPEGASUS) library.
 ```bash
 cd thirdparty/OpenPEGASUS
 mkdir build
