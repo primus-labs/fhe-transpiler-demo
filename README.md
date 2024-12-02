@@ -55,7 +55,7 @@ cd thirdparty/OpenPEGASUS
 mkdir build & cd build
 cmake .. -DSEAL_USE_ZLIB=OFF -DSEAL_USE_MSGSL=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=~/mylibs/pegasus
 make -j
-cd ../../
+cd ../../../
 ```
 
 ## Using Demo
