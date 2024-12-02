@@ -6,6 +6,14 @@ First, clone this repo.
 git clone https://github.com/primus-labs/fhe-transpiler-demo.git
 ```
 
+### Requirements
+- git 
+- c++ compiler that supports at least C++17 standard
+- cmake version >= 3.10
+- Matplotlib
+- NumPy
+- GMP
+
 ### Front-End
 Starting from the ``fhe-transpiler-demo`` directory and clone submodules.
 ```bash
@@ -44,8 +52,10 @@ Starting from the ``fhe-transpiler-demo`` directory.
 Make ``build`` directory for modified [OpenPEGASUS](https://github.com/ruiyushen/OpenPEGASUS) library.
 ```bash
 cd thirdparty/OpenPEGASUS
-mkdir build
-cd ../../../
+mkdir build & cd build
+cmake .. -DSEAL_USE_ZLIB=OFF -DSEAL_USE_MSGSL=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=~/mylibs/pegasus
+make -j
+cd ../../
 ```
 
 ## Using Demo

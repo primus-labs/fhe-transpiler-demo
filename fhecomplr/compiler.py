@@ -113,7 +113,7 @@ target_link_libraries({base_name}_exe pegasus)
             '-DSEAL_USE_ZLIB=OFF',
             '-DSEAL_USE_MSGSL=OFF',
             '-DCMAKE_BUILD_TYPE=Release',
-            '-DCMAKE_INSTALL_PREFIX=~/mylibs'
+            '-DCMAKE_INSTALL_PREFIX=~/mylibs/pegasus'
         ]
         pegasus_compile_command2 = [
             'make',
