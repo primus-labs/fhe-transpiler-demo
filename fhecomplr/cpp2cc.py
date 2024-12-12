@@ -1,13 +1,14 @@
 import re
-from fhecomplr.image import Imageplain
+from fhecomplr.value import Imageplain
 
 class OpenPEGASUSGenerator():
-    def __init__(self, function_file_path):
-        self.function_str = open(function_file_path, 'r').read()
-        self.function_name, self.param_names, self.statements = self.parse_function()
-        self.var_types = self.determine_var_types()
-        self.contains_comparelut = any(stmt[0] == 'comparelut' for stmt in self.statements)
-        self.pegasus_code = self.generate_pegasus_code(self.function_name, self.param_names, self.statements)
+    def __init__(self, function_file_path = None):
+        if function_file_path != None:
+            self.function_str = open(function_file_path, 'r').read()
+            self.function_name, self.param_names, self.statements = self.parse_function()
+            self.var_types = self.determine_var_types()
+            self.contains_comparelut = any(stmt[0] == 'comparelut' for stmt in self.statements)
+            self.pegasus_code = self.generate_pegasus_code(self.function_name, self.param_names, self.statements)
 
     def parse_function(self):
         lines = self.function_str.strip().split('\n')
@@ -129,9 +130,93 @@ class OpenPEGASUSGenerator():
         code += '}\n'
         return code
 
+    def cc_encrypt(self, output_file_path: str, image: Imageplain, output_cipher_path: str):
+        height = image.height
+        width = image.width
+        nslots = height * width
+        slots = [i/255 for i in image.data]
+
+        code = ''
+        code += '#include "pegasus/pegasus_runtime.h"\n'
+        code += '#include "pegasus/timer.h"\n'
+        code += '#include <iostream>\n#include <fstream>\n'
+        code += '#include <vector>\n'
+        code += '#include <random>\n'
+        code += '#include <type_traits>\n'
+        code += 'using namespace gemini;\n'
+        code += 'using namespace std;\n\n'
+
+        code += 'int main() {\n'
+        code += '    PegasusRunTime::Parms pp;\n'
+        code += '    pp.lvl0_lattice_dim = lwe::params::n();\n'
+        code += '    pp.lvl1_lattice_dim = 1 << 12;\n'
+        code += '    pp.lvl2_lattice_dim = 1 << 16;\n'
+        code += '    pp.nlevels = 4;\n'
+        code += '    pp.scale = std::pow(2., 40);\n'
+        code += f'    pp.nslots = {nslots};\n'
+        code += '    pp.s2c_multiplier = 1.;\n'
+        code += '    pp.enable_repacking = false;\n\n'
+        code += '    PegasusRunTime pg_rt(pp, 4);\n\n'
+        code += '    F64Vec slots = {' + ', '.join(map(str, slots)) + '};\n'
+        code += '    Ctx image;\n'
+        code += '    CHECK_AND_ABORT(pg_rt.EncodeThenEncrypt(slots, image));\n'
+        code += f'    std::ofstream ofs("{output_cipher_path}", std::ios::binary);\n'
+        code += '    image.save(ofs);\n'
+        code += '    ofs.close();\n'
+        code += '    return 0;\n'
+        code += '}'
+        with open(output_file_path, 'w') as outfile:
+            outfile.write(code)
+
+    def cc_decrypt(self, output_file_path: str, input_cipher_path: str, output_txt_path: str, width: int, height: int):
+        nslots = height * width
+        code = ''
+        code += '#include "pegasus/pegasus_runtime.h"\n'
+        code += '#include "pegasus/timer.h"\n'
+        code += '#include <iostream>\n#include <fstream>\n'
+        code += '#include <vector>\n'
+        code += '#include <random>\n'
+        code += '#include <type_traits>\n'
+        code += 'using namespace gemini;\n'
+        code += 'using namespace std;\n\n'
+
+        code += 'int main() {\n'
+        code += '    PegasusRunTime::Parms pp;\n'
+        code += '    pp.lvl0_lattice_dim = lwe::params::n();\n'
+        code += '    pp.lvl1_lattice_dim = 1 << 12;\n'
+        code += '    pp.lvl2_lattice_dim = 1 << 16;\n'
+        code += '    pp.nlevels = 4;\n'
+        code += '    pp.scale = std::pow(2., 40);\n'
+        code += f'    pp.nslots = {nslots};\n'
+        code += '    pp.s2c_multiplier = 1.;\n'
+        code += '    pp.enable_repacking = false;\n\n'
+        code += '    PegasusRunTime pg_rt(pp, 4);\n\n'
+        code += '    Ctx image;\n'
+        code += f'    std::ifstream ifs("{input_cipher_path}", std::ios::binary);\n'
+        code += '    pg_rt.load_cipher(image, ifs);\n'
+        code += '    ifs.close();\n'
+        code += '    F64Vec output;\n'
+        code += '    CHECK_AND_ABORT(pg_rt.DecryptThenDecode(image, pp.nslots, output));\n'
+        code += f'    std::ofstream outfile("{output_txt_path}");\n'
+        code += '    if (outfile.is_open()) {\n'
+        code += '        size_t index = 0;\n'
+        code += f'        for (size_t i = 0; i < {height}; ++i) {{\n'
+        code += f'            for (size_t j = 0; j < {width}; ++j) {{\n'
+        code += '                outfile << output[index++]*255 << " ";\n'
+        code += '            }\n'
+        code += '            outfile << std::endl;\n'
+        code += '        }\n'
+        code += '        outfile.close();\n'
+        code += '        std::cout << "Data saved in decrypted.txt" << std::endl;\n'
+        code += '    } else {\n'
+        code += '        std::cerr << "Can\'t write" << std::endl;\n'
+        code += '    }\n'
+        code += '    return 0;\n'
+        code += '}'
+        with open(output_file_path, 'w') as outfile:
+            outfile.write(code)
 
     def cpptocc(self, output_file_path: str, output_txt_path: str, image: Imageplain):
-
         height = image.height
         width = image.width
         nslots = height * width
@@ -241,4 +326,104 @@ Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
         code += '}'
 
         with open(output_file_path, 'w') as outfile:
+            outfile.write(code)
+
+    def enc_cpptocc(self, input_cipher_path: str, cc_path: str, output_cipher_path: str, slots: int):
+        nslots = slots
+
+        code = ''
+        code += '#include "pegasus/pegasus_runtime.h"\n'
+        code += '#include "pegasus/timer.h"\n'
+        code += '#include <iostream>\n#include <fstream>\n'
+        code += '#include <vector>\n'
+        code += '#include <random>\n'
+        code += '#include <type_traits>\n'
+        code += 'using namespace gemini;\n'
+        code += 'using namespace std;\n\n'
+
+        helper_functions = '''
+Ctx rlwe_multiply(Ctx &a, Ctx &b, PegasusRunTime &pg_rt)
+{
+    Ctx result = a;
+    pg_rt.Mul(result, b);
+    pg_rt.RelinThenRescale(result);
+    return result;
+}
+
+Ctx rlwe_addition(Ctx &a, Ctx &b, PegasusRunTime &pg_rt)
+{
+    Ctx result = a;
+    pg_rt.Add(result, b);
+    return result;
+}
+
+Ctx rlwe_substraction(Ctx &a, Ctx &b, PegasusRunTime &pg_rt)
+{
+    Ctx result = a;
+    pg_rt.Sub(result, b);
+    return result;
+}
+
+Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
+{
+    Ctx result = a;
+    pg_rt.RotateLeft(result, (size_t)abs(step));
+    return result;
+}
+        '''
+        code += helper_functions + '\n'
+
+        code += self.pegasus_code + '\n'
+
+        code += 'int main() {\n'
+        code += '    PegasusRunTime::Parms pp;\n'
+        code += '    pp.lvl0_lattice_dim = lwe::params::n();\n'
+        code += '    pp.lvl1_lattice_dim = 1 << 12;\n'
+        code += '    pp.lvl2_lattice_dim = 1 << 16;\n'
+        code += '    pp.nlevels = 4;\n'
+        code += '    pp.scale = std::pow(2., 40);\n'
+        code += f'    pp.nslots = {nslots};\n'
+        code += '    pp.s2c_multiplier = 1.;\n'
+        code += '    pp.enable_repacking = false;\n\n'
+        code += '    PegasusRunTime pg_rt(pp, 4);\n\n'
+        temp = 0
+        for param in self.param_names:
+            param_type = self.var_types.get(param, 'Ctx')
+            if param_type == 'Ctx':
+                temp += 1
+                if temp == 1:
+                    code += f'    Ctx {param};\n'
+                    code += f'    std::ifstream ifs("{input_cipher_path}", std::ios::binary)\n;'
+                    code += f'    pg_rt.load_cipher({param}, ifs);\n'
+                    code += '    ifs.close();\n'
+                else:
+                    code += f'    Ctx {param};\n'
+                if self.contains_comparelut:
+                    code += f'    CHECK_AND_ABORT(pg_rt.SlotsToCoeffs({param}));\n'
+            elif param_type == 'std::vector<lwe::Ctx_st>':
+                code += f'    std::vector<lwe::Ctx_st> {param};\n'
+
+        if self.contains_comparelut:
+            result_type = 'std::vector<lwe::Ctx_st>'
+            code += f'    {result_type} result = {self.function_name}(' + ', '.join([param for param in self.param_names]) + ', pg_rt);\n\n'
+            code += '    F64Vec output;\n'
+            code += '    for (auto &lwe_ct : result) {\n'
+            code += '        double value = pg_rt.DecryptLWE(lwe_ct);\n'
+            code += '        output.push_back(value);\n'
+            code += '    }\n\n'
+        else:
+            result_type = 'Ctx'
+            code += f'    {result_type} result = {self.function_name}(' + ', '.join([param for param in self.param_names]) + ', pg_rt);\n\n'
+            code += '    F64Vec output;\n'
+            code += '    CHECK_AND_ABORT(pg_rt.DecryptThenDecode(result, pp.nslots, output));\n\n'
+        code += '    Ctx image;\n'
+        code += '    pg_rt.EncodeThenEncrypt(output, image);\n'
+        code += f'    std::ofstream ofs("{output_cipher_path}", std::ios::binary);\n'
+        code += '    image.save(ofs);\n'
+        code += '    ofs.close();\n'
+        code += '    return 0;\n'
+        code += '}'
+
+
+        with open(cc_path, 'w') as outfile:
             outfile.write(code)

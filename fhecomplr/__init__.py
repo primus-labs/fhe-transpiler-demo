@@ -1,3 +1,4 @@
 from fhecomplr.compiler import Compiler
-from fhecomplr.image import Imageplain
-
+from fhecomplr.value import Imageplain
+from fhecomplr.cryptor import Cryptor
+from fhecomplr.runner import Runner

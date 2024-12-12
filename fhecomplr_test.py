@@ -30,11 +30,25 @@ def binary64x64(arg0:list[float, 4096], arg1:list[float, 4096]):
             arg1[i] = 0
     return arg1
 
+
 compiler = fhecomplr.Compiler()
-img = compiler.read("./benchmarks/binary/test.png")
+circuit = compiler.compile(encryptedRobertsCross_64x64)
+
+cryptor = fhecomplr.Cryptor()
+img = cryptor.read("./benchmarks/binary/test.png")
 img.show()
-compiler.compile(encryptedBoxBlur_64x64, img)
-output_image = compiler.run()
+
+cipher = cryptor.encrypt(img)
+cipher.show()
+
+evaled_cipher = circuit.run(cipher)
+evaled_cipher.show()
+
+output_image = cryptor.decrypt(evaled_cipher)
 output_image.show()
-output_image.save("./test/binary64x64.png")
+output_image.save("./test/evaled.png")
+
+decrypted_source_image = cryptor.decrypt(cipher)
+decrypted_source_image.show()
+decrypted_source_image.save("./test/source.png")
 

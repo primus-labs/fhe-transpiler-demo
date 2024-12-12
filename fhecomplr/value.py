@@ -2,6 +2,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+class Cipher:
+    def __init__(self, cipher_path: str, slots: int):
+        self.cipher_path = cipher_path
+        self.slots = slots
+    
+    def path(self):
+        return self.cipher_path
+    
+    def slot(self):
+        return self.slots
+    
+    def show(self):
+        print(f"Cipher can't be shown.")
+    
 class Imageplain:
     def __init__(self, data: list[float], width: int, height: int):
         self.data = data
