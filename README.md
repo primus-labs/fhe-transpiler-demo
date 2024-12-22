@@ -70,7 +70,7 @@ Make ``build`` directory for [OpenFHE](https://github.com/openfheorg/openfhe-dev
 ```bash
 cd thirdparty/openfhe-development
 mkdir build && cd build
-cmake .. -DCMAKE_INSTALL_PATH=~/mylibs
+cmake .. -DCMAKE_INSTALL_PREFIX=~/mylibs
 make -j
 make install
 cd ../../../openfhebackend
