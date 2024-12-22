@@ -1,16 +1,14 @@
 import os
 import shutil
-from fhecomplr.value import Imageplain, Cipher
-from fhecomplr.py2mlir import MLIRGenerator
+from fhecomplr.value import Cipher
 from fhecomplr.cpp2cc import OpenPEGASUSGenerator, OpenFHEGenerator
 import subprocess
-import inspect
-import ast
-import numpy as np
-import configparser
-from typing import Callable, Any
 
 class Runner:
+    """
+    Runner class that provides methods to compile and execute 
+    a C++ file using OpenPEGASUS or OpenFHE.
+    """
     def __init__(self):
         absolute_path = os.path.abspath(__file__)
         library_dir = os.path.dirname(absolute_path)
@@ -26,7 +24,17 @@ class Runner:
         self.slots = None
 
 
-    def movecctopegasus(self, cc_path: str):
+    def movecctopegasus(self, cc_path: str) -> str:
+        """
+        Moves the provided .cc file to the OpenPEGASUS examples directory
+        and returns the path to the compiled executable.
+
+        Args:
+            cc_path (str): Path to the .cc file.
+
+        Returns:
+            str: Path to the compiled executable.
+        """
         if not os.path.isfile(cc_path):
             raise FileNotFoundError(f"File not found: {cc_path}")
         if not os.path.isdir(self.openpegasus_path):
@@ -49,16 +57,22 @@ target_link_libraries({base_name}_exe pegasus)
         return os.path.join(self.openpegasus_path, f'build/bin/{base_name}_exe')
     
     def compile_pegasus_backend(self):
+        """
+        Compiles the OpenPEGASUS backend.
+        """
         build_dir = os.path.join(self.openpegasus_path, "build/")
-        pegasus_compile_command2 = [
+        pegasus_compile_command = [
             'make',
             '-C',
             build_dir,
             '-j'
         ]
-        subprocess.run(pegasus_compile_command2, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(pegasus_compile_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def compile_openfhe_backend(self):
+        """
+        Compiles the OpenFHE backend.
+        """
         cmake_file_path = os.path.join(self.fhe_transpiler_path, 'openfhebackend/CMakeLists.txt')
         cmake_content = 'add_executable(eval eval.cpp)'
         with open(cmake_file_path, 'r') as cmake_file:
@@ -86,7 +100,16 @@ target_link_libraries({base_name}_exe pegasus)
         ]
         subprocess.run(export_command)
     
-    def is_directory_empty(self, directory: str):
+    def is_directory_empty(self, directory: str) -> bool:
+        """
+        Checks if the provided directory is empty.
+
+        Args:
+            directory (str): Path to the directory.
+
+        Returns:
+            bool: True if the directory is empty, False otherwise.
+        """
         if not os.path.isdir(directory):
             raise ValueError(f"The path {directory} is not a valid directory")
         with os.scandir(directory) as entries:
@@ -95,6 +118,12 @@ target_link_libraries({base_name}_exe pegasus)
         return True 
 
     def compile_pegasus(self, cpp_path: str):
+        """
+        Compiles the provided C++ file using OpenPEGASUS.
+
+        Args:
+            cpp_path (str): Path to the C++ file.
+        """
         cc_output_path = os.path.join(self.fhe_transpiler_path, 'test/runner_temp.cc')
         output_cipher_path = os.path.join(self.fhe_transpiler_path, 'test/evaluated_cipher.bin')
         self.output_cipher_path = output_cipher_path
@@ -108,6 +137,12 @@ target_link_libraries({base_name}_exe pegasus)
         print("Compile OpenPEGASUS: Done.")
 
     def compile_openfhe(self, cpp_path: str):
+        """
+        Compiles the provided C++ file using OpenFHE.
+
+        Args:
+            cpp_path (str): Path to the C++ file.
+        """
         cpp_output_path = os.path.join(self.fhe_transpiler_path, 'openfhebackend/eval.cpp')
         output_cipher_path = os.path.join(self.fhe_transpiler_path, 'openfhebackend/build/ciphertexteval.bin')
         build_path = os.path.join(self.fhe_transpiler_path, 'openfhebackend/build')
@@ -121,6 +156,13 @@ target_link_libraries({base_name}_exe pegasus)
         self.compile_openfhe_backend()
 
     def exec(self, cpp_path: str, scheme: str):
+        """
+        Executes the compiled C++ file.
+
+        Args:
+            cpp_path (str): Path to the C++ file.
+            scheme (str): The scheme to be used for execution, 'pegasus' and 'openfhe' are supported.
+        """
         if scheme == 'pegasus':
             self.compile_pegasus(cpp_path)
         elif scheme == 'openfhe':
@@ -132,20 +174,45 @@ target_link_libraries({base_name}_exe pegasus)
         return Cipher(self.output_cipher_path, self.slots)
     
     def readcipher(self, cipher: Cipher):
+        """
+        Reads the provided cipher's path and slots.
+
+        Args:
+            cipher (Cipher): The cipher to be read.
+        """
         self.cipher_path = cipher.path()
         self.slots = cipher.slot()
 
 
 class Circuit(Runner):
+    """
+    Circuit class that provides methods to run a file compiled by HEIR.
+    """
     def __init__(self, cpp_path: str):
         super().__init__()
         self.cpp_path = cpp_path
         self.scheme = 'openfhe' 
 
-    def run(self, cipher: Cipher):
+    def run(self, cipher: Cipher) -> Cipher:
+        """
+        Runs the compiled C++ file using the provided cipher.
+
+        Args:
+            cipher (Cipher): The cipher to be used
+
+        Returns:
+            Cipher: The evaluated cipher.
+        """
         self.readcipher(cipher)
         self.exec(self.cpp_path, self.scheme)
         return Cipher(self.output_cipher_path, self.slots)
     
     def set_scheme(self, scheme: str):
+        """
+        Sets the scheme to be used for
+        executing the circuit.
+
+        Args:
+            scheme (str): The scheme to be used, 'pegasus' and 'openfhe' are supported.
+        """
         self.scheme = scheme

@@ -1,7 +1,12 @@
 import re
 from fhecomplr.value import Imageplain
+from typing import Tuple
 
 class OpenPEGASUSGenerator():
+    """
+    OpenPEGASUSGenerator class that generates PEGASUS code from a given function file.
+    It parses the function, determines variable types, and generates the corresponding PEGASUS code.
+    """
     def __init__(self, function_file_path = None):
         if function_file_path != None:
             self.function_str = open(function_file_path, 'r').read()
@@ -10,7 +15,13 @@ class OpenPEGASUSGenerator():
             self.contains_comparelut = any(stmt[0] == 'comparelut' for stmt in self.statements)
             self.pegasus_code = self.generate_pegasus_code(self.function_name, self.param_names, self.statements)
 
-    def parse_function(self):
+    def parse_function(self) -> Tuple:
+        """
+        Gets the function name, parameter names, and statements from the function string.
+
+        Returns:
+            tuple: A tuple containing the function name, parameter names, and statements.
+        """
         lines = self.function_str.strip().split('\n')
         function_header = lines[0]
         function_body = lines[1:-1] 
@@ -52,7 +63,13 @@ class OpenPEGASUSGenerator():
                     statements.append(('return', ret_var))
         return function_name, param_names, statements
 
-    def determine_var_types(self):
+    def determine_var_types(self) -> dict:
+        """
+        Determines the types of the variables in the function.
+        
+        Returns:
+            dict: A dictionary containing the variable names as keys and the variable types as values.
+        """
         var_types = {param: 'Ctx' for param in self.param_names}
         for stmt in self.statements:
             if stmt[0] == 'declare_assign':
@@ -70,7 +87,18 @@ class OpenPEGASUSGenerator():
                 pass 
         return var_types
 
-    def generate_pegasus_code(self, function_name: str, param_names: list, statements: list[list]):
+    def generate_pegasus_code(self, function_name: str, param_names: list, statements: list[list]) -> str:
+        """
+        Generates the Pegasus code for the function.
+
+        Args:
+            function_name (str): The name of the function.
+            param_names (list): The names of the parameters.
+            statements (list): The statements in the function.
+
+        Returns:
+            str: The generated Pegasus code.
+        """
         var_types = self.var_types
         ret_var = statements[-1][1] if statements and statements[-1][0] == 'return' else None
         if ret_var and var_types.get(ret_var) == 'std::vector<lwe::Ctx_st>':
@@ -131,6 +159,15 @@ class OpenPEGASUSGenerator():
         return code
 
     def cc_encrypt(self, output_file_path: str, image: Imageplain, output_cipher_path: str):
+        """
+        Generates a C++ file for encrypting an image using Pegasus.
+
+        Args:
+            output_file_path (str): Path to the output C++ file.
+            image (Imageplain): The image to be encrypted.
+            output_cipher_path (str): Path to save the encrypted cipher.
+        """
+
         height = image.height
         width = image.width
         nslots = height * width
@@ -169,6 +206,16 @@ class OpenPEGASUSGenerator():
             outfile.write(code)
 
     def cc_decrypt(self, output_file_path: str, input_cipher_path: str, output_txt_path: str, width: int, height: int):
+        """
+        Generates a C++ file for decrypting an image using Pegasus.
+
+        Args:
+            output_file_path (str): Path to the output C++ file.
+            input_cipher_path (str): Path to the input cipher.
+            output_txt_path (str): Path to save the decrypted image.
+            width (int): Width of the image.
+            height (int): Height of the image.
+        """
         nslots = height * width
         code = ''
         code += '#include "pegasus/pegasus_runtime.h"\n'
@@ -217,6 +264,14 @@ class OpenPEGASUSGenerator():
             outfile.write(code)
 
     def cpptocc(self, output_file_path: str, output_txt_path: str, image: Imageplain):
+        """
+        Generates a C++ file for decrypting an image using Pegasus.
+
+        Args:
+            output_file_path (str): Path to the output C++ file.
+            output_txt_path (str): Path to save the decrypted image.
+            image (Imageplain): The image to be decrypted.
+        """
         height = image.height
         width = image.width
         nslots = height * width
@@ -329,6 +384,16 @@ Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
             outfile.write(code)
 
     def enc_cpptocc(self, input_cipher_path: str, cc_path: str, output_cipher_path: str, slots: int):
+        """
+        Generates a C++ file for evaluating the encrypted image cipher by Pegasus.
+        
+        Args:
+            input_cipher_path (str): Path to the input cipher.
+            cc_path (str): Path to the output C++ file.
+            output_cipher_path (str): Path to save the encrypted cipher.
+            slots (int): Number of slots.
+        """
+        
         nslots = slots
 
         code = ''
@@ -431,6 +496,10 @@ Ctx RotateLeft(Ctx &a, int step, PegasusRunTime &pg_rt)
 
 
 class OpenFHEGenerator():
+    """
+    OpenFHEGenerator class that generates OpenFHE code from a given function file.
+    It parses the function, determines if it contains comparelut statements, and generates the corresponding OpenFHE code.
+    """
     def __init__(self, function_file_path = None):
         if function_file_path != None:
             self.function_str = open(function_file_path, 'r').read()
@@ -438,7 +507,13 @@ class OpenFHEGenerator():
             self.contains_comparelut = any(stmt[0] == 'comparelut' for stmt in self.statements)
             self.openfhe_code = self.generate_openfhe_code(self.function_name, self.param_names, self.statements)
 
-    def parse_function(self):
+    def parse_function(self) -> Tuple:
+        """
+        Gets the function name, parameter names, and statements from the function string.
+
+        Returns:
+            tuple: A tuple containing the function name, parameter names, and statements.
+        """
         lines = self.function_str.strip().split('\n')
         function_header = lines[0]
         function_body = lines[1:-1] 
@@ -480,7 +555,18 @@ class OpenFHEGenerator():
                     statements.append(('return', ret_var))
         return function_name, param_names, statements
 
-    def generate_openfhe_code(self, function_name: str, param_names: list, statements: list[list]):
+    def generate_openfhe_code(self, function_name: str, param_names: list, statements: list[list]) -> str:
+        """
+        Generates C++ code that uses the OpenFHE library to perform the operations specified in the function.
+
+        Args:
+            function_name (str): Name of the function.
+            param_names (list): List of parameter names.
+            statements (list): List of statements in the function.
+
+        Returns:
+            str: C++ code that uses the OpenFHE library to perform the operations specified in the function.
+        """
         ret_var = statements[-1][1] if statements and statements[-1][0] == 'return' else None
         return_type = 'Ciphertext<DCRTPoly>'
 
@@ -531,10 +617,10 @@ class OpenFHEGenerator():
         """
         Generates a C++ program that uses the OpenFHE library to encrypt an image with specified rotation steps.
 
-        Parameters:
-        - output_file_path (str): Path to save the generated C++ code.
-        - image (Imageplain): An object containing image data with attributes `height`, `width`, and `data`.
-        - rotate_steps (list[int]): A list of integers specifying the rotation steps for key generation.
+        Args:
+            output_file_path (str): Path to save the generated C++ code.
+            image (Imageplain): An object containing image data with attributes `height`, `width`, and `data`.
+            rotate_steps (list[int]): A list of integers specifying the rotation steps for key generation.
         """
         height = image.height
         width = image.width
@@ -620,11 +706,11 @@ class OpenFHEGenerator():
         """
         Generate a C++ program that uses the OpenFHE library to decrypt an encrypted image and save the result to a text file.
 
-        Parameters:
-        - output_file_path (str): The path where the generated C++ code file is saved.
-        - output_txt_path (str): The path where the decrypted image data is saved (text file).
-        - width (int): The width of the image.
-        - height (int): The height of the image.
+        Args:
+            output_file_path (str): The path where the generated C++ code file is saved.
+            output_txt_path (str): The path where the decrypted image data is saved (text file).
+            width (int): The width of the image.
+            height (int): The height of the image.
         """
         nslots = width * height 
 
@@ -694,11 +780,11 @@ class OpenFHEGenerator():
         """
         Generates a C++ program that loads an encrypted ciphertext, performs operations, and saves the resulting ciphertext.
 
-        Parameters:
-        - input_cipher_path (str): Path to the input encrypted ciphertext file.
-        - cc_path (str): Path to the serialized CryptoContext and keys.
-        - output_cipher_path (str): Path where the output ciphertext will be saved.
-        - build_path (str): Build folder of openfhe back-end.
+        Args:
+            input_cipher_path (str): Path to the input encrypted ciphertext file.
+            cc_path (str): Path to the serialized CryptoContext and keys.
+            output_cipher_path (str): Path where the output ciphertext will be saved.
+            build_path (str): Build folder of openfhe back-end.
         """
 
         code = ''

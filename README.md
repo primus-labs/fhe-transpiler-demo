@@ -52,6 +52,7 @@ cd ../
 ```
 
 ### Back-End
+#### OpenPEGASUS
 Starting from the ``fhe-transpiler-demo`` directory.
 
 Make ``build`` directory for modified [OpenPEGASUS](https://github.com/ruiyushen/OpenPEGASUS) library.
@@ -63,15 +64,31 @@ make -j
 cd ../../../
 ```
 
+#### OpenFHE
+Starting from the ``fhe-transpiler-demo`` directory.
+Make ``build`` directory for [OpenFHE](https://github.com/openfheorg/openfhe-development.git) library.
+```bash
+cd thirdparty/openfhe-development
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PATH=~/mylibs
+make -j
+make install
+cd ../../../openfhebackend
+mkdir build && cd build
+cmake .. -DCMAKE_PREFIX_PATH=~/mylibs
+cd ../../
+```
+
 ## Using Demo
 Before using demo, go to the fhe-transpiler-demo folder and configure PYTHONPATH.
 ```bash
 export PYTHONPATH=thirdparty/llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
 ```
 
-Run  ```fhecomplr_test.py``` to get the test results.
+Run  ```pegasus_test.py``` or ```openfhe_test.py``` to get the test results.
 ```bash
-python fhecomplr_test.py
+python pegasus_test.py
+python openfhe_test.py
 ```
 
 

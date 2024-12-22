@@ -5,6 +5,9 @@ from mlir.ir import ShapedType
 import numpy as np
 
 class MLIRGenerator(ast.NodeVisitor):
+    """
+    Visitor class that generates MLIR code from a Python AST.
+    """
     def __init__(self, module):
         self.module = module
         self.symbol_table = {}

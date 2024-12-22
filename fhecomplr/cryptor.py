@@ -1,17 +1,16 @@
 import os
-import shutil
 from fhecomplr.value import Imageplain, Cipher
-from fhecomplr.py2mlir import MLIRGenerator
 from fhecomplr.cpp2cc import OpenPEGASUSGenerator, OpenFHEGenerator
 import subprocess
-import inspect
-import ast
 import numpy as np
-import configparser
-from typing import Callable, Any
+from typing import List
 
 class Encryptor:
-    def __init__(self, rotate_steps = None):
+    """
+    Encryptor class that provides methods to read an image, encrypt it
+    using OpenPEGASUS or OpenFHE, and generate an image cipher.
+    """
+    def __init__(self, rotate_steps: List[int] = None):
         absolute_path = os.path.abspath(__file__)
         library_dir = os.path.dirname(absolute_path)
         self.fhe_transpiler_path = os.path.dirname(library_dir)
@@ -23,7 +22,16 @@ class Encryptor:
             self.rotate_steps = rotate_steps
             self.openfhe_path = os.path.join(self.fhe_transpiler_path, 'openfhebackend')
 
-    def read(self, filepath: str):
+    def read(self, filepath: str) -> Imageplain:
+        """
+        Reads an image from the given file path and returns an Imageplain object.
+
+        Args:
+            filepath (str): Path to the image file.
+
+        Returns:
+            Imageplain: Imageplain object containing the image data.
+        """
         from PIL import Image as PILImage
         pil_img = PILImage.open(filepath).convert('L')
         width, height = pil_img.size
@@ -33,6 +41,12 @@ class Encryptor:
         return Imageplain(data, width, height)
     
     def compilerunpegasus(self, exe_path: str):
+        """
+        Compiles and runs the OpenPEGASUS encryption code.
+
+        Args:
+            exe_path (str): Path to the executable file.
+        """
         build_path = os.path.join(self.openpegasus_path, 'build')
         pegasus_compile_command = [
             'make',
@@ -45,6 +59,12 @@ class Encryptor:
         subprocess.run(run_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     def compilerunopenfhe(self, exe_path: str):
+        """
+        Compiles and runs the OpenFHE encryption code.
+
+        Args:
+            exe_path (str): Path to the executable file.
+        """
         build_path = os.path.join(self.openfhe_path, 'build')
         pegasus_compile_command = [
             'make',
@@ -62,7 +82,17 @@ class Encryptor:
         subprocess.run(export_command)
         subprocess.run(run_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def encrypt(self, image: Imageplain, output_path: str = './test/encrypted_cipher.bin'):
+    def encrypt(self, image: Imageplain, output_path: str = './test/encrypted_cipher.bin') -> Cipher:
+        """
+        Encrypts the given image using OpenPEGASUS or OpenFHE.
+
+        Args:
+            image (Imageplain): Imageplain object containing the image data.
+            output_path (str): Path to save the encrypted cipher.
+
+        Returns:
+            Cipher: Cipher object containing the encrypted data.
+        """
         if self.scheme == 'pegasus':
             generator = OpenPEGASUSGenerator()
             cc_path = os.path.join(self.openpegasus_path, 'fhetranexamples/cc_encrypt.cc')
@@ -99,6 +129,10 @@ class Encryptor:
     
 
 class Decryptor:
+    """
+    Decryptor class that provides methods to decrypt an encrypted cipher
+    using OpenPEGASUS or OpenFHE.
+    """
     def __init__(self, encryptor: Encryptor):
         self.width = encryptor.width
         self.height = encryptor.height
@@ -109,7 +143,16 @@ class Decryptor:
             self.scheme = 'openfhe'
             self.openfhe_path = encryptor.openfhe_path
 
-    def decrypt(self, cipher_path: str):
+    def decrypt(self, cipher_path: str) -> Imageplain:
+        """
+        Decrypts the given cipher using OpenPEGASUS or OpenFHE.
+
+        Args:
+            cipher_path (str): Path to the encrypted cipher file.
+
+        Returns:
+            Imageplain: Imageplain object containing the decrypted image data.
+        """
         if self.scheme == 'pegasus':
             generator = OpenPEGASUSGenerator()
             cc_path = os.path.join(self.openpegasus_path, 'fhetranexamples/cc_decrypt.cc')
@@ -150,6 +193,12 @@ class Decryptor:
             return output_image
     
     def compilerunpegasus(self, exe_path: str):
+        """
+        Compiles and runs the OpenPEGASUS decryption code.
+
+        Args:
+            exe_path (str): Path to the executable file.
+        """
         build_path = os.path.join(self.openpegasus_path, 'build')
         pegasus_compile_command = [
             'make',
@@ -162,6 +211,12 @@ class Decryptor:
         subprocess.run(run_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def compilerunopenfhe(self, exe_path: str):
+        """
+        Compiles and runs the OpenFHE decryption code.
+
+        Args:
+            exe_path (str): Path to the executable file.
+        """
         build_path = os.path.join(self.openfhe_path, 'build')
         pegasus_compile_command = [
             'make',
@@ -181,6 +236,10 @@ class Decryptor:
 
 
 class Cryptor:
+    """
+    Cryptor class that provides methods to read an image, encrypt it
+    using OpenPEGASUS or OpenFHE, and decrypt the encrypted cipher.
+    """
     def __init__(self, scheme: str = 'openfhe', rotate_steps: list = []):
         self.scheme = scheme
         if scheme == 'openfhe':
@@ -192,17 +251,51 @@ class Cryptor:
         else:
             raise ValueError(f"Invalid scheme: {scheme}")
 
-    def read(self, filepath: str):
+    def read(self, filepath: str) -> Imageplain:
+        """
+        Reads an image from the given file path.
+
+        Args:
+            filepath (str): Path to the image file.
+
+        Returns:
+            Imageplain: Imageplain object containing the image data.
+        """
         image = self.encryptor.read(filepath)
         self.decryptor = Decryptor(self.encryptor)
         return image
     
-    def encrypt(self, image: Imageplain, output_path: str = './test/encrypted_cipher.bin'):
+    def encrypt(self, image: Imageplain, output_path: str = './test/encrypted_cipher.bin') -> Cipher:
+        """
+        Encrypts the given image using OpenPEGASUS or OpenFHE.
+
+        Args:
+            image (Imageplain): Imageplain object containing the image data.
+            output_path (str): Path to save the encrypted cipher.
+
+        Returns:
+            Cipher: Cipher object containing the encrypted data.
+        """
         cipher = self.encryptor.encrypt(image, output_path)
         return cipher
     
-    def decrypt(self, cipher: Cipher):
+    def decrypt(self, cipher: Cipher) -> Imageplain:
+        """
+        Decrypts the given cipher.
+
+        Args:
+            cipher (Cipher): Cipher object containing the encrypted data.
+
+        Returns:
+            Imageplain: Imageplain object containing the decrypted image data.
+        """
         return self.decryptor.decrypt(cipher.path())
     
     def set_scheme(self, scheme: str):
+        """
+        Sets the encryption scheme.
+
+        Args:
+            scheme (str): The encryption scheme to be used.
+        """
         self.scheme = scheme
