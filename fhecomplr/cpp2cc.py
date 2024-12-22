@@ -699,9 +699,6 @@ class OpenFHEGenerator():
         with open(output_file_path, 'w') as outfile:
             outfile.write(code)
 
-        print(f"C++ encryption code has been generated and saved to {output_file_path}")
-
-
     def decrypt(self, output_file_path: str, output_txt_path: str, cipher_path: str, width: int, height: int, build_path: str):
         """
         Generate a C++ program that uses the OpenFHE library to decrypt an encrypted image and save the result to a text file.
@@ -772,9 +769,6 @@ class OpenFHEGenerator():
 
         with open(output_file_path, 'w') as outfile:
             outfile.write(code)
-
-        print(f"C++ decryption code has been generated and saved to {output_file_path}")
-
 
     def cpptoof(self, input_cipher_path: str, output_cpp_path: str, output_cipher_path: str, build_path: str):
         """

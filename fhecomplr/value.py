@@ -42,9 +42,9 @@ class Cipher:
         """
         file_info = self._get_file_info()
         if file_info:
-            print(f"Cipher(", f"file: {file_info['file_name']}, size: {file_info['size']} bytes)")
+            print(f"Cipher({file_info['file_name']}, size: {file_info['size']} bytes), Can't be shown.")
         else:
-            print(f"Cipher(path='{self.cipher_path}', file: <not found>)")
+            print(f"Cipher(<not found>)")
 
     
     def __str__(self):
