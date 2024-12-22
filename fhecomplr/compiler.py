@@ -10,6 +10,7 @@ import inspect
 import ast
 import numpy as np
 import configparser
+import re
 from typing import Callable, Any
 
 class Compiler:
@@ -52,6 +53,13 @@ class Compiler:
         with open(cpp_output_path, 'w') as emitc_cpp_file:
             subprocess.run(emitc_translate_command, stdout=emitc_cpp_file, check=True)
 
+    def extract_rotate_left_steps(self, file_path: str):
+        pattern = r'RotateLeft\(\s*[^,]+,\s*(\d+)\s*\)'
+        with open(file_path, 'r') as file:
+            content = file.read()
+        steps = re.findall(pattern, content)
+        return [int(step) for step in steps]
+
 
     def compile_function(self, function: Callable):
         function_name = function.__name__
@@ -71,10 +79,11 @@ class Compiler:
         self.emitctocpp(emitc_mlir_output_path, emitc_cpp_output_path)
         print("EmitC to CPP: Done.")
 
-        return emitc_cpp_output_path
+        rotate_steps = self.extract_rotate_left_steps(emitc_cpp_output_path)
+        return emitc_cpp_output_path, rotate_steps
 
 
     def compile(self, function: Callable):
-        cpp_path = self.compile_function(function)
+        cpp_path, rotate_steps = self.compile_function(function)
 
-        return Circuit(cpp_path)
+        return Circuit(cpp_path), rotate_steps

@@ -2,7 +2,7 @@ import os
 import shutil
 from fhecomplr.value import Imageplain, Cipher
 from fhecomplr.py2mlir import MLIRGenerator
-from fhecomplr.cpp2cc import OpenPEGASUSGenerator
+from fhecomplr.cpp2cc import OpenPEGASUSGenerator, OpenFHEGenerator
 import subprocess
 import inspect
 import ast
@@ -48,7 +48,7 @@ target_link_libraries({base_name}_exe pegasus)
             cmake_file.write(cmake_content.strip() + "\n")
         return os.path.join(self.openpegasus_path, f'build/bin/{base_name}_exe')
     
-    def compile_pegasus(self):
+    def compile_pegasus_backend(self):
         build_dir = os.path.join(self.openpegasus_path, "build/")
         pegasus_compile_command2 = [
             'make',
@@ -57,6 +57,34 @@ target_link_libraries({base_name}_exe pegasus)
             '-j'
         ]
         subprocess.run(pegasus_compile_command2, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def compile_openfhe_backend(self):
+        cmake_file_path = os.path.join(self.fhe_transpiler_path, 'openfhebackend/CMakeLists.txt')
+        cmake_content = 'add_executable(eval eval.cpp)'
+        with open(cmake_file_path, 'r') as cmake_file:
+            lines = cmake_file.readlines()
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].strip().startswith('add_executable'):
+                del lines[i]
+                break
+        lines.append(cmake_content)
+        with open(cmake_file_path, 'w') as cmake_file:
+            cmake_file.writelines(lines)
+
+        build_dir = os.path.join(self.fhe_transpiler_path, "openfhebackend/build/")
+        openfhe_compile_command = [
+            'make',
+            '-C',
+            build_dir,
+            '-j'
+        ]
+        subprocess.run(openfhe_compile_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        export_command = [
+            'bash',
+            '-c',
+            'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/mylibs/lib'
+        ]
+        subprocess.run(export_command)
     
     def is_directory_empty(self, directory: str):
         if not os.path.isdir(directory):
@@ -66,8 +94,8 @@ target_link_libraries({base_name}_exe pegasus)
                 return False
         return True 
 
-    def compile(self, cpp_path: str):
-        cc_output_path = os.path.join(self.fhe_transpiler_path, f'test/runner_temp.cc')
+    def compile_pegasus(self, cpp_path: str):
+        cc_output_path = os.path.join(self.fhe_transpiler_path, 'test/runner_temp.cc')
         output_cipher_path = os.path.join(self.fhe_transpiler_path, 'test/evaluated_cipher.bin')
         self.output_cipher_path = output_cipher_path
         cpptranspiler = OpenPEGASUSGenerator(cpp_path)
@@ -76,13 +104,31 @@ target_link_libraries({base_name}_exe pegasus)
 
         exe_path = self.movecctopegasus(cc_output_path)
         self.exe_path = exe_path
-        self.compile_pegasus()
+        self.compile_pegasus_backend()
         print("Compile OpenPEGASUS: Done.")
 
-    def exec(self, cpp_path: str):
-        self.compile(cpp_path)
-        subprocess.run(self.exe_path)
-        print("Cipher evaluated and saved to: ", self.output_cipher_path)
+    def compile_openfhe(self, cpp_path: str):
+        cpp_output_path = os.path.join(self.fhe_transpiler_path, 'openfhebackend/eval.cpp')
+        output_cipher_path = os.path.join(self.fhe_transpiler_path, 'openfhebackend/build/ciphertexteval.bin')
+        build_path = os.path.join(self.fhe_transpiler_path, 'openfhebackend/build')
+        self.output_cipher_path = output_cipher_path
+        cpptranspiler = OpenFHEGenerator(cpp_path)
+        cpptranspiler.cpptoof(self.cipher_path, cpp_output_path, output_cipher_path, build_path)
+        print("CPP to OpenFHE: Done.")
+
+        exe_path = os.path.join(build_path, 'eval')
+        self.exe_path = exe_path
+        self.compile_openfhe_backend()
+
+    def exec(self, cpp_path: str, scheme: str):
+        if scheme == 'pegasus':
+            self.compile_pegasus(cpp_path)
+        elif scheme == 'openfhe':
+            self.compile_openfhe(cpp_path)
+        else:
+            raise ValueError(f"Invalid scheme: {scheme}")
+        subprocess.run(self.exe_path, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # print("Cipher evaluated and saved to: ", self.output_cipher_path)
         return Cipher(self.output_cipher_path, self.slots)
     
     def readcipher(self, cipher: Cipher):
@@ -94,8 +140,12 @@ class Circuit(Runner):
     def __init__(self, cpp_path: str):
         super().__init__()
         self.cpp_path = cpp_path
+        self.scheme = 'openfhe' 
 
     def run(self, cipher: Cipher):
         self.readcipher(cipher)
-        self.exec(self.cpp_path)
+        self.exec(self.cpp_path, self.scheme)
         return Cipher(self.output_cipher_path, self.slots)
+    
+    def set_scheme(self, scheme: str):
+        self.scheme = scheme

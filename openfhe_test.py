@@ -32,9 +32,12 @@ def binary64x64(arg0:list[float, 4096], arg1:list[float, 4096]):
 
 
 compiler = fhecomplr.Compiler()
-circuit = compiler.compile(encryptedRobertsCross_64x64)
+circuit, rotate_steps = compiler.compile(encryptedRobertsCross_64x64) # OpenFHE needs rotate steps to generate the circuit
 
-cryptor = fhecomplr.Cryptor()
+scheme = 'openfhe'
+circuit.set_scheme(scheme)
+
+cryptor = fhecomplr.Cryptor(scheme, rotate_steps)
 img = cryptor.read("./benchmarks/binary/test.png")
 img.show()
 

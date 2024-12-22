@@ -4,3 +4,6 @@
 [submodule "thirdparty/OpenPEGASUS"]
 	path = thirdparty/OpenPEGASUS
 	url = https://github.com/ruiyushen/OpenPEGASUS.git
+[submodule "thirdparty/openfhe-development"]
+	path = thirdparty/openfhe-development
+	url = https://github.com/openfheorg/openfhe-development.git
