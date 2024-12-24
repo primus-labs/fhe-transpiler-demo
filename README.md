@@ -80,9 +80,10 @@ cd ../../
 ```
 
 ## Using Demo
-Before using demo, go to the fhe-transpiler-demo folder and configure PYTHONPATH.
+Before using demo, go to the fhe-transpiler-demo folder and configure PYTHONPATH, LD_LIBRARY_PATH.
 ```bash
 export PYTHONPATH=thirdparty/llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/mylibs/lib
 ```
 
 Run  ```pegasus_test.py``` or ```openfhe_test.py``` to get the test results.
