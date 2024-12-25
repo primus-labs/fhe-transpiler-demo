@@ -240,7 +240,7 @@ class Cryptor:
     Cryptor class that provides methods to read an image, encrypt it
     using OpenPEGASUS or OpenFHE, and decrypt the encrypted cipher.
     """
-    def __init__(self, scheme: str = 'openfhe', rotate_steps: list = []):
+    def __init__(self, rotate_steps: list = [], scheme: str = 'openfhe',):
         self.scheme = scheme
         if scheme == 'openfhe':
             if rotate_steps == []:

@@ -37,7 +37,7 @@ circuit, _ = compiler.compile(encryptedRobertsCross_64x64)
 scheme = 'pegasus'
 circuit.set_scheme(scheme)
 
-cryptor = fhecomplr.Cryptor(scheme)
+cryptor = fhecomplr.Cryptor(scheme = scheme)
 img = cryptor.read("./benchmarks/binary/test.png")
 img.show()
 
