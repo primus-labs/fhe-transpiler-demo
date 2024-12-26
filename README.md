@@ -2,6 +2,7 @@
 
 ## Requirements
 - git 
+- ninja
 - c++ compiler that supports at least C++17 standard
 - cmake version >= 3.20
 - python version >= 3.10
@@ -52,18 +53,6 @@ cd ../
 ```
 
 ### Back-End
-#### OpenPEGASUS
-Starting from the ``fhe-transpiler-demo`` directory.
-
-Make ``build`` directory for modified [OpenPEGASUS](https://github.com/ruiyushen/OpenPEGASUS) library.
-```bash
-cd thirdparty/OpenPEGASUS
-mkdir build && cd build
-cmake .. -DSEAL_USE_ZLIB=OFF -DSEAL_USE_MSGSL=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=~/mylibs/pegasus
-make -j
-cd ../../../
-```
-
 #### OpenFHE
 Starting from the ``fhe-transpiler-demo`` directory.
 Make ``build`` directory for [OpenFHE](https://github.com/openfheorg/openfhe-development.git) library.
@@ -79,16 +68,15 @@ cmake .. -DCMAKE_PREFIX_PATH=~/mylibs
 cd ../../
 ```
 
-## Using Demo
-Before using demo, go to the fhe-transpiler-demo folder and configure PYTHONPATH, LD_LIBRARY_PATH.
+## Run Demo
+Before run demo, go to the fhe-transpiler-demo folder and configure PYTHONPATH, LD_LIBRARY_PATH.
 ```bash
 export PYTHONPATH=thirdparty/llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/mylibs/lib
 ```
 
-Run  ```pegasus_test.py``` or ```openfhe_test.py``` to get the test results.
+Run  ```openfhe_test.py``` to get the test results.
 ```bash
-python pegasus_test.py
 python openfhe_test.py
 ```
 
