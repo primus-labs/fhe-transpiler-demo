@@ -69,8 +69,8 @@ cmake .. -DCMAKE_INSTALL_PREFIX=~/mylibs
 
 If you use ``MacOS`` and get an error about a missing regular expression backend, run the following commands
 ```bash
-cmake -DCMAKE_CROSSCOMPILING=1 -DRUN_HAVE_STD_REGEX=0 -DRUN_HAVE_POSIX_REGEX=0 .. -DCMAKE_INSTALL_PREFIX=~/mylibs
-cmake .. -DCMAKE_INSTALL_PREFIX=~/mylibs
+cmake -DCMAKE_CROSSCOMPILING=1 -DRUN_HAVE_STD_REGEX=0 -DRUN_HAVE_POSIX_REGEX=0 -DCMAKE_INSTALL_PREFIX=~/mylibs ..
+cmake -DCMAKE_INSTALL_PREFIX=~/mylibs ..
 ```
 
 Then run the remaining code.
