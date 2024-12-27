@@ -38,6 +38,7 @@ cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="mlir" -DLLVM_BUILD_EXAMP
 -DMLIR_ENABLE_BINDINGS_PYTHON=ON -DLLVM_ENABLE_RTTI=ON -DCMAKE_INSTALL_PREFIX=~/mylibs/llvm19
 cd build
 ninja -j 64
+ninja install
 cd ../../../
 ```
 
@@ -71,7 +72,7 @@ cd ../../
 ## Run Demo
 Before run demo, go to the fhe-transpiler-demo folder and configure PYTHONPATH, LD_LIBRARY_PATH.
 ```bash
-export PYTHONPATH=thirdparty/llvm-project/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
+export PYTHONPATH=~/mylibs/llvm19/python_packages/mlir_core:${PYTHONPATH}
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/mylibs/lib
 ```
 

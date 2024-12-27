@@ -1,6 +1,41 @@
 import matplotlib.pyplot as plt
+import matplotlib
+import platform
 import numpy as np
 import os
+import platform
+import matplotlib
+
+def set_matplotlib_backend():
+    """
+    Sets the appropriate matplotlib backend based on the current operating system
+    and whether the environment is headless.
+    """
+    current_system = platform.system()
+    is_headless = False
+
+    if current_system in ['Linux', 'Darwin']:
+        is_headless = 'DISPLAY' not in os.environ
+    elif current_system == 'Windows':
+        pass
+
+    try:
+        if is_headless:
+            matplotlib.use('Agg')
+        else:
+            if current_system == 'Darwin':
+                matplotlib.use('MacOSX')
+            elif current_system == 'Linux':
+                try:
+                    matplotlib.use('Qt5Agg')
+                except ImportError:
+                    matplotlib.use('TkAgg')
+            elif current_system == 'Windows':
+                matplotlib.use('TkAgg')
+            else:
+                matplotlib.use('Agg')
+    except Exception:
+        matplotlib.use('Agg')
 
 class Cipher:
     """
@@ -75,6 +110,7 @@ class Imageplain:
         """
         image_array = np.array(self.data)
         image = image_array.reshape((self.height, self.width))
+        set_matplotlib_backend()
         plt.imshow(image, cmap='gray')
         plt.axis('off')
         plt.show()
@@ -112,5 +148,6 @@ class Imageplain:
             file_name += ".png"
         if os.path.isdir(output_path):
             output_path = os.path.join(output_path, file_name)
+        set_matplotlib_backend()
         plt.imsave(output_path, image, cmap='gray', format='png')
         print(f"Image saved as {output_path}")
