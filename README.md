@@ -8,6 +8,7 @@
 - python version >= 3.10
 - python package requirements: Matplotlib, NumPy, Pybind11
 - GMP
+- libomp (if use MacOS)
 
 ## Installation
 First, clone this repo.
@@ -60,7 +61,20 @@ Make ``build`` directory for [OpenFHE](https://github.com/openfheorg/openfhe-dev
 ```bash
 cd thirdparty/openfhe-development
 mkdir build && cd build
+```
+If you use ``Linux``, just run
+```bash
 cmake .. -DCMAKE_INSTALL_PREFIX=~/mylibs
+```
+
+If you use ``MacOS`` and get an error about a missing regular expression backend, run the following commands
+```bash
+cmake -DCMAKE_CROSSCOMPILING=1 -DRUN_HAVE_STD_REGEX=0 -DRUN_HAVE_POSIX_REGEX=0 .. -DCMAKE_INSTALL_PREFIX=~/mylibs
+cmake .. -DCMAKE_INSTALL_PREFIX=~/mylibs
+```
+
+Then run the remaining code.
+```bash
 make -j
 make install
 cd ../../../openfhebackend
@@ -70,7 +84,7 @@ cd ../../
 ```
 
 ## Run Demo
-Before run demo, go to the fhe-transpiler-demo folder and configure PYTHONPATH, LD_LIBRARY_PATH.
+Before running demo, go to the fhe-transpiler-demo folder and configure PYTHONPATH, LD_LIBRARY_PATH.
 ```bash
 export PYTHONPATH=~/mylibs/llvm19/python_packages/mlir_core:${PYTHONPATH}
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/mylibs/lib
