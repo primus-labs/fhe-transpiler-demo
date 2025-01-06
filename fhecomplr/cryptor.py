@@ -114,8 +114,10 @@ class Encryptor:
             with open(image_data_path, 'w') as img_file:
                 for value in image.data:
                     img_file.write(f"{value}\n")
-
-            rotate_steps_str = '_'.join(map(str, self.rotate_steps))
+            if rotate_steps_str != None:
+                rotate_steps_str = '_'.join(map(str, self.rotate_steps))
+            else:
+                rotate_steps_str = ''
             size_str = f"{image.width}x{image.height}"
             exe_name = f"encrypt_rs{rotate_steps_str}_sz{size_str}"
             exe_path = os.path.join(build_path, exe_name)
