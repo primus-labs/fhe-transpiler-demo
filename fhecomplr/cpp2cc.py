@@ -613,7 +613,7 @@ class OpenFHEGenerator():
         code += '}\n'
         return code
 
-    def encrypt(self, output_file_path: str, image: Imageplain, rotate_steps: list[int], build_path: str):
+    def encrypt(self, output_file_path: str, image: Imageplain, rotate_steps: list[int], build_path: str, image_data_path: str):
         """
         Generates a C++ program that uses the OpenFHE library to encrypt an image with specified rotation steps.
 
@@ -621,11 +621,12 @@ class OpenFHEGenerator():
             output_file_path (str): Path to save the generated C++ code.
             image (Imageplain): An object containing image data with attributes `height`, `width`, and `data`.
             rotate_steps (list[int]): A list of integers specifying the rotation steps for key generation.
+            build_path (str): The build directory path.
+            image_data_path (str): Path to the image data txt file.
         """
         height = image.height
         width = image.width
         nslots = height * width
-        slots = [i / 255.0 for i in image.data]
 
         code = ''
         code += '#include "openfhe.h"\n'
@@ -635,6 +636,7 @@ class OpenFHEGenerator():
         code += '#include "scheme/ckksrns/ckksrns-ser.h"\n'
         code += '#include <vector>\n'
         code += '#include <iostream>\n'
+        code += '#include <fstream>\n'
         code += '#include <cmath>\n'
         code += '#include <functional>\n'
         code += '#include <complex>\n\n'
@@ -646,7 +648,8 @@ class OpenFHEGenerator():
         code += f'const std::string secKeyLocation = "{build_path}/key_sec.bin";\n'
         code += f'const std::string multKeyLocation = "{build_path}/key_mult.bin";\n'
         code += f'const std::string rotKeyLocation = "{build_path}/key_rot.bin";\n'
-        code += f'const std::string cipherEncLocation = "{build_path}/ciphertextenc.bin";\n\n'
+        code += f'const std::string cipherEncLocation = "{build_path}/ciphertextenc.bin";\n'
+        code += f'const std::string imageDataPath = "{image_data_path}";\n\n'
 
         code += 'int main() {\n'
         code += '    // Initialize Crypto Parameters\n'
@@ -672,8 +675,13 @@ class OpenFHEGenerator():
         rotate_steps_str = ', '.join(map(str, rotate_steps))
         code += f'    cryptoContext->EvalRotateKeyGen(keyPair.secretKey, {{{rotate_steps_str}}});\n\n'
 
-        slots_str = ', '.join(f'{slot:.6f}' for slot in slots)
-        code += f'    std::vector<double> image = {{{slots_str}}};\n'
+        code += '    std::vector<double> image;\n'
+        code += '    std::ifstream imgFile(imageDataPath);\n'
+        code += '    double value;\n'
+        code += '    while (imgFile >> value) {\n'
+        code += '        image.push_back(value);\n'
+        code += '    }\n'
+        code += '    imgFile.close();\n\n'
 
         code += '    Plaintext ptxt_image = cryptoContext->MakeCKKSPackedPlaintext(image);\n'
         code += '    Ciphertext<DCRTPoly> ciphertext_image = cryptoContext->Encrypt(keyPair.publicKey, ptxt_image);\n\n'
@@ -708,6 +716,7 @@ class OpenFHEGenerator():
             output_txt_path (str): The path where the decrypted image data is saved (text file).
             width (int): The width of the image.
             height (int): The height of the image.
+            build_path (str): The build directory path.
         """
         nslots = width * height 
 
@@ -729,7 +738,7 @@ class OpenFHEGenerator():
         code += f'const std::string ccLocation = "{build_path}/cryptocontext.bin";\n'
         code += f'const std::string secKeyLocation = "{build_path}/key_sec.bin";\n'
         code += f'const std::string cipherEvalLocation = "{cipher_path}";\n'
-        code += 'const std::string outputTxtLocation = "' + output_txt_path + '";\n\n'
+        code += f'const std::string outputTxtLocation = "{output_txt_path}";\n\n'
 
         code += 'int main() {\n'
         code += f'    size_t Slots = {nslots};\n'

@@ -14,6 +14,7 @@ class Encryptor:
         absolute_path = os.path.abspath(__file__)
         library_dir = os.path.dirname(absolute_path)
         self.fhe_transpiler_path = os.path.dirname(library_dir)
+        self.exeexist = 0
         if rotate_steps is None:
             self.scheme = 'pegasus'
             self.openpegasus_path = os.path.join(self.fhe_transpiler_path, 'thirdparty/OpenPEGASUS')
@@ -65,22 +66,20 @@ class Encryptor:
         Args:
             exe_path (str): Path to the executable file.
         """
-        build_path = os.path.join(self.openfhe_path, 'build')
-        pegasus_compile_command = [
-            'make',
-            '-C',
-            build_path,
-            '-j'
-        ]
-        export_command = [
-            'bash',
-            '-c',
-            'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/mylibs/lib'
-        ]
-        subprocess.run(pegasus_compile_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        run_command = [exe_path]
-        subprocess.run(export_command)
-        subprocess.run(run_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if self.exeexist == 0:
+            build_path = os.path.join(self.openfhe_path, 'build')
+            pegasus_compile_command = [
+                'make',
+                '-C',
+                build_path,
+                '-j'
+            ]
+            subprocess.run(pegasus_compile_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            run_command = [exe_path]
+            subprocess.run(run_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            run_command = [exe_path]
+            subprocess.run(run_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def encrypt(self, image: Imageplain, output_path: str = './test/encrypted_cipher.bin') -> Cipher:
         """
@@ -108,21 +107,50 @@ class Encryptor:
         
         elif self.scheme == 'openfhe':
             generator = OpenFHEGenerator()
-            cpp_path = os.path.join(self.openfhe_path, 'encrypt.cpp')
-            cmake_file_path = os.path.join(self.openfhe_path, 'CMakeLists.txt')
-            cmake_content = 'add_executable(encrypt encrypt.cpp)'
-            with open(cmake_file_path, 'r') as cmake_file:
-                lines = cmake_file.readlines()
-            for i in range(len(lines) - 1, -1, -1):
-                if lines[i].strip().startswith('add_executable'):
-                    del lines[i]
-                    break
-            lines.append(cmake_content)
-            with open(cmake_file_path, 'w') as cmake_file:
-                cmake_file.writelines(lines)
-            generator.encrypt(cpp_path, image, self.rotate_steps, os.path.join(self.openfhe_path, 'build'))
-            self.compilerunopenfhe(os.path.join(self.openfhe_path, 'build/encrypt'))
-            return Cipher(os.path.join(self.openfhe_path, 'build/ciphertextenc.bin'), image.width * image.height)
+            build_path = os.path.join(self.openfhe_path, 'build')
+            if not os.path.exists(build_path):
+                os.makedirs(build_path)
+            image_data_path = os.path.join(build_path, 'image_data.txt')
+            with open(image_data_path, 'w') as img_file:
+                for value in image.data:
+                    img_file.write(f"{value}\n")
+
+            rotate_steps_str = '_'.join(map(str, self.rotate_steps))
+            size_str = f"{image.width}x{image.height}"
+            exe_name = f"encrypt_rs{rotate_steps_str}_sz{size_str}"
+            exe_path = os.path.join(build_path, exe_name)
+
+            if os.path.exists(exe_path):
+                print(f"Executable {exe_name} already exists. Skipping compilation.")
+                self.exeexist = 1
+                self.compilerunopenfhe(exe_path)
+
+            else:
+                print(f"Generating and compiling executable {exe_name}.")
+                cpp_code_path = os.path.join(self.openfhe_path, f"{exe_name}.cpp")
+                generator.encrypt(
+                    output_file_path=cpp_code_path,
+                    image=image,
+                    rotate_steps=self.rotate_steps,
+                    build_path=build_path,
+                    image_data_path=image_data_path
+                )
+                
+                cmake_file_path = os.path.join(self.openfhe_path, 'CMakeLists.txt')
+                cmake_content = f"add_executable({exe_name} {exe_name}.cpp)\n"
+                with open(cmake_file_path, 'r') as cmake_file:
+                    lines = cmake_file.readlines()
+                for i in range(len(lines) - 1, -1, -1):
+                    if lines[i].strip().startswith('add_executable'):
+                        del lines[i]
+                        break
+                lines.append(cmake_content)
+                with open(cmake_file_path, 'w') as cmake_file:
+                    cmake_file.writelines(lines)
+                self.compilerunopenfhe(exe_path)
+            
+            cipher_path = os.path.join(build_path, 'ciphertextenc.bin')
+            return Cipher(cipher_path, image.width * image.height)
             
         else:
             raise ValueError(f"Invalid scheme: {self.scheme}")
@@ -136,6 +164,7 @@ class Decryptor:
     def __init__(self, encryptor: Encryptor):
         self.width = encryptor.width
         self.height = encryptor.height
+        self.exeexist = 0
         if encryptor.scheme == 'pegasus':
             self.scheme = 'pegasus'
             self.openpegasus_path = encryptor.openpegasus_path
@@ -172,21 +201,52 @@ class Decryptor:
         
         elif self.scheme == 'openfhe':
             generator = OpenFHEGenerator()
-            cpp_path = os.path.join(self.openfhe_path, 'decrypt.cpp')
-            cmake_file_path = os.path.join(self.openfhe_path, 'CMakeLists.txt')
-            cmake_content = 'add_executable(decrypt decrypt.cpp)'
-            with open(cmake_file_path, 'r') as cmake_file:
-                lines = cmake_file.readlines()
-            for i in range(len(lines) - 1, -1, -1):
-                if lines[i].strip().startswith('add_executable'):
-                    del lines[i]
-                    break
-            lines.append(cmake_content)
-            with open(cmake_file_path, 'w') as cmake_file:
-                cmake_file.writelines(lines)
-            generator.decrypt(cpp_path, os.path.join(self.openfhe_path, 'decrypted.txt'), cipher_path, self.width, self.height, os.path.join(self.openfhe_path, 'build'))
-            self.compilerunopenfhe(os.path.join(self.openfhe_path, 'build/decrypt'))
-            output_txt = np.loadtxt(os.path.join(self.openfhe_path, 'decrypted.txt'))
+            build_path = os.path.join(self.openfhe_path, 'build')
+            cp_command = [
+                'cp',
+                '-f',
+                cipher_path,
+                os.path.join(build_path, 'cipher.bin')
+            ]
+            subprocess.run(cp_command)
+            decrypted_txt_path = os.path.join(build_path, 'decrypted.txt')
+            if not os.path.exists(build_path):
+                os.makedirs(build_path)
+            
+            exe_name = f"decrypt_sz{self.width}x{self.height}"
+            exe_path = os.path.join(build_path, exe_name)
+
+            if os.path.exists(exe_path):
+                print(f"Executable {exe_name} already exists. Skipping compilation.")
+                self.exeexist = 1
+                self.compilerunopenfhe(exe_path)
+
+            else:
+                print(f"Generating and compiling executable {exe_name}.")
+                cpp_code_path = os.path.join(self.openfhe_path, f"{exe_name}.cpp")
+                generator.decrypt(
+                    output_file_path=cpp_code_path,
+                    output_txt_path=decrypted_txt_path,
+                    cipher_path=os.path.join(build_path, 'cipher.bin'),
+                    width=self.width,
+                    height=self.height,
+                    build_path=build_path
+                )
+                
+                cmake_file_path = os.path.join(self.openfhe_path, 'CMakeLists.txt')
+                cmake_content = f"add_executable({exe_name} {exe_name}.cpp)\n"
+                with open(cmake_file_path, 'r') as cmake_file:
+                    lines = cmake_file.readlines()
+                for i in range(len(lines) - 1, -1, -1):
+                    if lines[i].strip().startswith('add_executable'):
+                        del lines[i]
+                        break
+                lines.append(cmake_content)
+                with open(cmake_file_path, 'w') as cmake_file:
+                    cmake_file.writelines(lines)
+                self.compilerunopenfhe(exe_path)
+
+            output_txt = np.loadtxt(decrypted_txt_path)
             height, width = output_txt.shape
             output_image = Imageplain(output_txt.flatten(), height, width)
             print("Cipher decrypted")
@@ -217,22 +277,20 @@ class Decryptor:
         Args:
             exe_path (str): Path to the executable file.
         """
-        build_path = os.path.join(self.openfhe_path, 'build')
-        pegasus_compile_command = [
-            'make',
-            '-C',
-            build_path,
-            '-j'
-        ]
-        export_command = [
-            'bash',
-            '-c',
-            'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/mylibs/lib'
-        ]
-        subprocess.run(pegasus_compile_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        run_command = [exe_path]
-        subprocess.run(export_command)
-        subprocess.run(run_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if self.exeexist == 0:
+            build_path = os.path.join(self.openfhe_path, 'build')
+            pegasus_compile_command = [
+                'make',
+                '-C',
+                build_path,
+                '-j'
+            ]
+            subprocess.run(pegasus_compile_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            run_command = [exe_path]
+            subprocess.run(run_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            run_command = [exe_path]
+            subprocess.run(run_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 class Cryptor:
