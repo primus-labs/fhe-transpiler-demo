@@ -90,12 +90,17 @@ export PYTHONPATH=~/mylibs/llvm19/python_packages/mlir_core:${PYTHONPATH}
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/mylibs/lib
 ```
 
-Run  ```openfhe_test.py``` to get the test results.
+Run ```openfhe_test.py``` to get the test results.
 ```bash
 python openfhe_test.py
 ```
 
-
-
+Run ```user-server-test``` to complete the entire process.
+```bash
+python user-server-test/compile.py
+python user-server-test/user-encrypt.py
+python user-server-test/server-eval.py
+python user-server-test/user-decrypt.py
+```
 
 

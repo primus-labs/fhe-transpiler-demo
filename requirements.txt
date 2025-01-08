@@ -1,4 +1,5 @@
 matplotlib
+pickle
 nanobind>=2.4, <3.0
 numpy>=1.19.5, <=2.1.2
 pybind11>=2.10.0, <=2.13.6
