@@ -114,7 +114,7 @@ class Encryptor:
             with open(image_data_path, 'w') as img_file:
                 for value in image.data:
                     img_file.write(f"{value}\n")
-            if rotate_steps_str != None:
+            if self.rotate_steps != None:
                 rotate_steps_str = '_'.join(map(str, self.rotate_steps))
             else:
                 rotate_steps_str = ''
