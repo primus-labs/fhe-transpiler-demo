@@ -113,7 +113,7 @@ class Encryptor:
             image_data_path = os.path.join(build_path, 'image_data.txt')
             with open(image_data_path, 'w') as img_file:
                 for value in image.data:
-                    img_file.write(f"{value}\n")
+                    img_file.write(f"{value/255}\n")
             if self.rotate_steps != None:
                 rotate_steps_str = '_'.join(map(str, self.rotate_steps))
             else:
